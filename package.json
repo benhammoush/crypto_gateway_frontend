@@ -1,0 +1,46 @@
+{
+  "name": "crypto_gateway_frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "vite --host localhost --port 5173 --strictPort",
+    "dev:merchant": "node --env-file-if-exists=.env.server.local --import tsx server/local.ts",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "contract:generate": "node scripts/generate-contract.mjs",
+    "contract:check": "node scripts/generate-contract.mjs --check",
+    "build": "node scripts/check-config.mjs && tsc --noEmit && vite build",
+    "check": "npm run lint && npm run format:check && npm run contract:check && npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.99.0",
+    "buffer": "6.0.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "eslint": "10.12.0",
+    "jsdom": "^29.0.0",
+    "openapi-typescript": "^7.10.0",
+    "prettier": "3.9.10",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "8.71.2",
+    "vite": "^8.0.10",
+    "vitest": "^5.0.3"
+  }
+}

@@ -1,0 +1,276 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap");
+
+:root {
+  font-family: "DM Sans", sans-serif;
+  color: #e9ede7;
+  background: #101510;
+  font-synthesis: none;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input {
+  font: inherit;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+.shell {
+  max-width: 1120px;
+  min-height: 100dvh;
+  margin: auto;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+}
+header,
+footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+header {
+  padding-bottom: 24px;
+  border-bottom: 1px solid #303a2d;
+}
+.brand {
+  font-family: "Space Mono", monospace;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+.brand span,
+h1 span {
+  color: #c7f58a;
+}
+.badge,
+.eyebrow,
+footer,
+.footnote,
+dt,
+.quote {
+  font-family: "Space Mono", monospace;
+}
+.badge {
+  font-size: 10px;
+  color: #c7f58a;
+  border: 1px solid #435335;
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+main {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 60px 0;
+}
+.card {
+  width: 100%;
+  max-width: 500px;
+  padding: 36px;
+  background: #171e16;
+  border: 1px solid #303a2d;
+  border-radius: 12px;
+  box-shadow: 0 24px 90px #0003;
+}
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #a0af94;
+  margin: 0 0 24px;
+}
+h1 {
+  font-size: clamp(32px, 5vw, 44px);
+  line-height: 1.12;
+  letter-spacing: -1.8px;
+  margin: 0 0 20px;
+}
+.description {
+  line-height: 1.7;
+  color: #a9b3a4;
+  font-size: 14px;
+  margin-bottom: 30px;
+}
+label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 10px;
+  color: #bcc8b5;
+}
+.amount {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  gap: 10px;
+  border: 1px solid #46543d;
+  border-radius: 6px;
+  background: #101510;
+}
+.amount:focus-within {
+  outline: 2px solid #c7f58a;
+  outline-offset: 2px;
+}
+.amount input {
+  min-width: 0;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  color: #e9ede7;
+  outline: none;
+}
+.currency {
+  font-size: 12px;
+  color: #99a58e;
+}
+button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 6px;
+  background: #c7f58a;
+  color: #17230e;
+  font-weight: 700;
+  cursor: pointer;
+}
+button:hover {
+  background: #d6ffa4;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #e9ede7;
+  outline-offset: 4px;
+}
+.secondary {
+  background: transparent;
+  border: 1px solid #46543d;
+  color: #c7f58a;
+  font-size: 12px;
+  justify-content: center;
+}
+.secondary:hover {
+  background: #263021;
+}
+.footnote {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #94a18a;
+  margin: 24px 0 0;
+}
+.total {
+  font-size: 36px;
+  margin: 24px 0 12px;
+}
+.total small {
+  font-size: 12px;
+  color: #a9b3a4;
+}
+.quote {
+  color: #c7f58a;
+  font-size: 14px;
+}
+.quote span {
+  display: block;
+  color: #94a18a;
+  font-size: 10px;
+  margin-top: 8px;
+}
+dl {
+  font-size: 11px;
+  margin: 24px 0;
+}
+dt {
+  color: #94a18a;
+  margin-top: 12px;
+}
+dd {
+  margin: 5px 0 0;
+}
+.address {
+  overflow-wrap: anywhere;
+}
+.progress {
+  list-style: none;
+  padding: 0;
+  margin: 28px 0 0;
+}
+.progress li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: 12px;
+  color: #819078;
+}
+.progress li > span {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #46543d;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 10px;
+}
+.progress .active {
+  color: #c7f58a;
+}
+.progress .active > span {
+  border-color: #c7f58a;
+  background: #2e4122;
+}
+.notice {
+  border: 1px solid #78673a;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.7;
+  border-radius: 6px;
+  color: #e6d6a2;
+}
+.error {
+  border-color: #986c60;
+  color: #f1beb0;
+}
+.success {
+  border-color: #6b8a4a;
+  color: #c7f58a;
+}
+footer {
+  border-top: 1px solid #303a2d;
+  padding-top: 20px;
+  font-size: 9px;
+  color: #94a18a;
+  letter-spacing: 0.5px;
+}
+@media (max-width: 540px) {
+  .shell {
+    padding: 20px;
+  }
+  header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  main {
+    padding: 32px 0;
+  }
+  .card {
+    padding: 24px;
+  }
+  footer {
+    flex-wrap: wrap;
+  }
+}
