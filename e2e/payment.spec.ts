@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import {
+  SystemInstruction,
+  Transaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
 
 test("browser wallet flow verifies only after authoritative settlement", async ({
   page,
@@ -7,6 +12,30 @@ test("browser wallet flow verifies only after authoritative settlement", async (
   let submitted = false;
   let settled = false;
   const rpcMethods: string[] = [];
+  await page.exposeFunction("validateFixtureMessage", (wire: number[]) => {
+    const bytes = new Uint8Array(wire);
+    const decoded = VersionedTransaction.deserialize(bytes);
+    expect(decoded.version).toBe("legacy");
+    const transaction = Transaction.from(bytes);
+    expect(transaction.instructions).toHaveLength(2);
+    const transfer = SystemInstruction.decodeTransfer(
+      transaction.instructions[0],
+    );
+    expect(transfer.lamports).toBe(100000000n);
+    expect(transfer.fromPubkey.toBase58()).toBe("1".repeat(32));
+    expect(transfer.toPubkey.toBase58()).toBe(
+      "So11111111111111111111111111111111111111112",
+    );
+    expect(transaction.feePayer?.toBase58()).toBe("1".repeat(32));
+    expect(decoded.message.header.numRequiredSignatures).toBe(1);
+    const memo = transaction.instructions[1];
+    expect(memo.programId.toBase58()).toBe(
+      "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+    );
+    expect(new TextDecoder().decode(memo.data)).toBe(`crypto_gateway:${id}`);
+    expect(memo.keys[0].pubkey.toBase58()).toBe("1".repeat(32));
+    expect(memo.keys[0].isSigner).toBe(true);
+  });
   await page.addInitScript(() => {
     Object.assign(window, {
       phantom: {
@@ -24,15 +53,16 @@ test("browser wallet flow verifies only after authoritative settlement", async (
               }),
             ),
           signAndSendTransaction: async (transaction: {
-            instructions: { data: { toString(encoding: string): string } }[];
+            serialize(): Uint8Array;
           }) => {
-            if (
-              transaction.instructions.length !== 2 ||
-              !transaction.instructions[1].data
-                .toString("utf8")
-                .startsWith("crypto_gateway:")
-            )
-              throw new Error("Unexpected transaction format.");
+            const bytes = transaction.serialize();
+            if (!(bytes instanceof Uint8Array))
+              throw new Error("Wallet serialization must be synchronous.");
+            await (
+              window as unknown as {
+                validateFixtureMessage(wire: number[]): Promise<void>;
+              }
+            ).validateFixtureMessage(Array.from(bytes));
             return { signature: "1".repeat(64) };
           },
         },
@@ -51,6 +81,10 @@ test("browser wallet flow verifies only after authoritative settlement", async (
       return;
     }
     const method = route.request().postDataJSON().method;
+    if (method === "getLatestBlockhash")
+      expect(route.request().postDataJSON().params).toEqual([
+        { commitment: "finalized" },
+      ]);
     expect(route.request().headers().authorization).toBe(
       `Bearer ${"a".repeat(64)}`,
     );

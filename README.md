@@ -27,11 +27,15 @@ Wallet submission is not settlement. The gateway alone confirms the final step. 
 
 Before opening the wallet, checkout persists an in-flight guard. Reloading before a signature is returned cannot offer another transfer; the customer must check wallet activity/contact the merchant if submission is uncertain. Definite preparation failures or explicit wallet rejection clear the guard. Browser session storage must be available before submission. API requests combine cancellation with a twelve-second deadline so stalled requests cannot freeze polling indefinitely.
 
+Uncertain wallet errors show an allowlisted diagnostic label (for example `WALLET_RPC_-32603`), not raw wallet messages or payloads. The label is retained in tab-scoped storage across refreshes without clearing the submission guard. `UNAVAILABLE` means no safe diagnostic was retained, including errors from older clients; a diagnostic never proves whether the wallet broadcast a transfer or permits paying again.
+
 Checkout tokens arrive in a URL fragment, move into tab-scoped session storage and are removed from the address bar. They cannot perform merchant operations. Do not copy them to logs or analytics. Reopen the original checkout link to resume in another tab.
 
 ## Public contract
 
 Wallet preparation sends authenticated JSON-RPC calls to the configured gateway's `/v1/checkout/:id/rpc` route. Provider keys/URLs stay server-side. The client ignores the deprecated payment `rpcUrl` field, bounds RPC calls to twelve seconds, never follows redirects, and does not automatically retry rate-limited preparation. Only Phantom can approve and submit the transaction. New clients require a backend that supplies this route; select that compatible pair explicitly. Use `PLAYWRIGHT_PORT=5175` (PowerShell: `$env:PLAYWRIGHT_PORT='5175'`) for browser tests when port 5173 is occupied; tests always start their own server instead of reusing another project's app.
+
+The pinned web3.js v3 SDK builds the same legacy SOL transfer and signer-bound memo. Checkout uses Phantom's recommended `signAndSendTransaction` API with a `VersionedTransaction` wrapping a legacy message: its wire format remains legacy, and serialization is synchronous at the wallet boundary. It does not pass the v3 legacy `Transaction` object, whose serializer is asynchronous. There is no automatic fallback or second wallet submission. Real Phantom Devnet acceptance remains required before activation.
 
 `src/generated-api.ts` is generated from an explicitly selected backend `openapi.json`. `contract-source.json` records source version, revision and hash. Update with:
 

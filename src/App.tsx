@@ -1,7 +1,12 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { parseUsd, paymentStatus, request, submitSignature } from "./api";
 import { Payment, PROGRESS, Progress } from "./types";
-import { sendPayment, WalletNotSubmitted } from "./wallet";
+import {
+  sendPayment,
+  walletDiagnostic,
+  WalletNotSubmitted,
+  WalletSubmissionUncertain,
+} from "./wallet";
 import { readSession, removeSession, saveSession } from "./storage";
 
 const MAX_POLLS = 180;
@@ -109,6 +114,9 @@ export function Checkout({ id, token }: { id: string; token: string }) {
   const [uncertain, setUncertain] = useState(
     readSession(`${savedKey}:uncertain`) === "true",
   );
+  const [diagnostic, setDiagnostic] = useState(() =>
+    walletDiagnostic(readSession(`${savedKey}:walletDiagnostic`)),
+  );
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -130,6 +138,7 @@ export function Checkout({ id, token }: { id: string; token: string }) {
           setMessage("");
           removeSession(savedKey);
           removeSession(`${savedKey}:uncertain`);
+          removeSession(`${savedKey}:walletDiagnostic`);
           return;
         }
         const signature = candidate.current;
@@ -215,6 +224,11 @@ export function Checkout({ id, token }: { id: string; token: string }) {
       }
       setRound((value) => value + 1);
     } catch (error) {
+      if (error instanceof WalletSubmissionUncertain) {
+        const code = walletDiagnostic(error.diagnosticCode);
+        setDiagnostic(code);
+        if (code) saveSession(`${savedKey}:walletDiagnostic`, code);
+      }
       if (error instanceof WalletNotSubmitted) {
         removeSession(`${savedKey}:uncertain`);
         setUncertain(false);
@@ -302,6 +316,24 @@ export function Checkout({ id, token }: { id: string; token: string }) {
         <p className="notice" role="alert">
           Wallet submission is uncertain. Check wallet activity and contact the
           merchant before paying again.
+        </p>
+      )}
+      {uncertain && !busy && progress !== "Payment verified" && (
+        <p className="notice" role="status">
+          Wallet diagnostic: <code>{diagnostic ?? "UNAVAILABLE"}</code>. This
+          does not confirm whether a transfer was submitted.
+          <br />
+          Wallet API check: request{" "}
+          {typeof window.phantom?.solana?.request === "function"
+            ? "available"
+            : "unavailable"}
+          ; direct sender{" "}
+          {window.phantom?.solana &&
+          "signAndSendTransaction" in window.phantom.solana &&
+          typeof window.phantom.solana.signAndSendTransaction === "function"
+            ? "available"
+            : "unavailable"}
+          .
         </p>
       )}
       {!busy && progress !== "Payment verified" && (
