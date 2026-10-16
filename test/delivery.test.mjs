@@ -1,0 +1,104 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { format } from "prettier";
+import {
+  checkBackendContract,
+  checkDelivery,
+  currentTarget,
+} from "../scripts/check-delivery.mjs";
+
+/** Create synthetic environment-scoped release configuration. */
+function environment() {
+  return {
+    DEPLOY_ENABLED: "true",
+    GITHUB_REF: "refs/heads/main",
+    GITHUB_EVENT_NAME: "push",
+    GITHUB_RUN_ATTEMPT: "1",
+    SOURCE_SHA: "a".repeat(40),
+    DELIVERY_TARGET: "dev",
+    VITE_APP_ENV: "dev",
+    VITE_API_ORIGIN: "https://api.example.com",
+    TARGET_ORIGIN: "https://checkout.example.com",
+    VERCEL_ORG_ID: "team_test",
+    VERCEL_PROJECT_ID: "prj_dev",
+    OTHER_VERCEL_PROJECT_ID: "prj_production",
+    VERCEL_TOKEN: "synthetic",
+  };
+}
+const contract = { revision: "b".repeat(40), sha256: "c".repeat(64) };
+afterEach(() => vi.unstubAllGlobals());
+
+it("requires isolated explicit configuration and immutable backend provenance", () => {
+  expect(() => checkDelivery(environment(), contract)).not.toThrow();
+  for (const [key, value] of [
+    ["DEPLOY_ENABLED", "false"],
+    ["GITHUB_REF", "refs/heads/feature"],
+    ["SOURCE_SHA", "main"],
+    ["DELIVERY_TARGET", "staging"],
+    ["GITHUB_EVENT_NAME", "pull_request"],
+    ["VITE_APP_ENV", "production"],
+    ["VITE_API_ORIGIN", "http://localhost:8787"],
+    ["TARGET_ORIGIN", "https://user:secret@example.com"],
+    ["VERCEL_TOKEN", ""],
+    ["OTHER_VERCEL_PROJECT_ID", "prj_dev"],
+  ])
+    expect(() =>
+      checkDelivery({ ...environment(), [key]: value }, contract),
+    ).toThrow();
+  expect(() =>
+    checkDelivery(environment(), { ...contract, revision: "local" }),
+  ).toThrow();
+});
+it("production requires a new manual dispatch and has no dev verification token", () => {
+  const env = {
+    ...environment(),
+    DELIVERY_TARGET: "production",
+    VITE_APP_ENV: "production",
+  };
+  expect(() => checkDelivery(env, contract)).toThrow();
+  env.GITHUB_EVENT_NAME = "workflow_dispatch";
+  expect(() => checkDelivery(env, contract)).not.toThrow();
+  env.GITHUB_RUN_ATTEMPT = "2";
+  expect(() => checkDelivery(env, contract)).toThrow();
+});
+it("compares the exact backend schema without a moving-ref fallback", async () => {
+  const schema = { openapi: "3.0.3", info: { version: "0.1.0" } };
+  const hash = createHash("sha256")
+    .update(await format(JSON.stringify(schema), { parser: "json" }))
+    .digest("hex");
+  const fetch = vi.fn(async () => ({ ok: true, json: async () => schema }));
+  vi.stubGlobal("fetch", fetch);
+  await checkBackendContract({ ...contract, sha256: hash });
+  expect(fetch.mock.calls[0][0]).toContain(contract.revision);
+  await expect(checkBackendContract(contract)).rejects.toThrow(
+    "schema differs",
+  );
+});
+it("gates delivery behind the existing quality/browser jobs and native target environment", () => {
+  const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  expect(workflow).toContain("needs: [source, quality, browser]");
+  expect(workflow).toContain("environment: ${{ inputs.target || 'dev' }}");
+  expect(workflow).toContain("cancel-in-progress: false");
+  expect(workflow).toContain("git merge-base --is-ancestor");
+  expect(workflow).not.toContain("VERCEL_DEV_VERIFICATION_TOKEN");
+});
+
+it("reads only the selected target project and retains its prior identity", async () => {
+  const env = environment();
+  const project = {
+    id: env.VERCEL_PROJECT_ID,
+    accountId: env.VERCEL_ORG_ID,
+    name: "crypto-gateway-dev",
+    targets: { production: { id: "dpl_previous" } },
+  };
+  const fetch = vi.fn(async () => ({ ok: true, json: async () => project }));
+  vi.stubGlobal("fetch", fetch);
+  expect(await currentTarget(env)).toEqual({
+    project: env.VERCEL_PROJECT_ID,
+    previous: "dpl_previous",
+  });
+  expect(fetch.mock.calls[0][0]).toContain("/projects/prj_dev?");
+  project.name = "other";
+  await expect(currentTarget(env)).rejects.toThrow();
+});

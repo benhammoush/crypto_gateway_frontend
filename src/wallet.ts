@@ -7,6 +7,7 @@ import {
 } from "@solana/web3.js";
 import { Buffer } from "buffer";
 import { Payment } from "./types";
+import { checkoutRpcUrl } from "./api";
 
 export interface PhantomProvider {
   isPhantom?: boolean;
@@ -25,8 +26,11 @@ declare global {
 export class WalletSubmissionUncertain extends Error {}
 export class WalletNotSubmitted extends Error {}
 
-/** Build the exact two-instruction format verified by the gateway. */
-export async function sendPayment(payment: Payment): Promise<string> {
+/** Build transfer + signer-bound memo; the gateway also validates wallet-added compute settings. */
+export async function sendPayment(
+  payment: Payment,
+  token: string,
+): Promise<string> {
   const wallet = window.phantom?.solana;
   let transaction: Transaction;
   try {
@@ -34,9 +38,21 @@ export async function sendPayment(payment: Payment): Promise<string> {
       throw new Error("Install or open Phantom to pay with Devnet SOL.");
     if (payment.status !== "pending" || Date.now() >= payment.expiresAt)
       throw new Error("This payment is not currently payable.");
-    const connection = new Connection(payment.rpcUrl, "finalized");
+    const connection = new Connection(checkoutRpcUrl(payment.id), {
+      commitment: "finalized",
+      httpHeaders: { authorization: `Bearer ${token}` },
+      disableRetryOnRateLimit: true,
+      fetch: (url, init) =>
+        fetch(url, {
+          ...init,
+          signal: AbortSignal.timeout(12_000),
+          redirect: "error",
+          credentials: "omit",
+        }),
+    });
     if (
-      (await connection.getGenesisHash()) !== "EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+      (await connection.getGenesisHash()) !==
+      "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
     )
       throw new Error("The configured network is not Solana Devnet.");
     const connected = await wallet.connect();

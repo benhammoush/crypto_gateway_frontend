@@ -31,6 +31,8 @@ Checkout tokens arrive in a URL fragment, move into tab-scoped session storage a
 
 ## Public contract
 
+Wallet preparation sends authenticated JSON-RPC calls to the configured gateway's `/v1/checkout/:id/rpc` route. Provider keys/URLs stay server-side. The client ignores the deprecated payment `rpcUrl` field, bounds RPC calls to twelve seconds, never follows redirects, and does not automatically retry rate-limited preparation. Only Phantom can approve and submit the transaction. New clients require a backend that supplies this route; select that compatible pair explicitly. Use `PLAYWRIGHT_PORT=5175` (PowerShell: `$env:PLAYWRIGHT_PORT='5175'`) for browser tests when port 5173 is occupied; tests always start their own server instead of reusing another project's app.
+
 `src/generated-api.ts` is generated from an explicitly selected backend `openapi.json`. `contract-source.json` records source version, revision and hash. Update with:
 
 `npm run contract:generate -- <explicit-openapi-path> <full-backend-sha|local>`
