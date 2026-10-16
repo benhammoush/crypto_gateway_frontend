@@ -13,6 +13,11 @@ export class ApiError extends Error {
   }
 }
 
+/** Derive the RPC route from trusted gateway configuration, never provider data. */
+export function checkoutRpcUrl(id: string): string {
+  return `${origin}/v1/checkout/${encodeURIComponent(id)}/rpc`;
+}
+
 export async function request<T>(
   url: string,
   init: RequestInit = {},

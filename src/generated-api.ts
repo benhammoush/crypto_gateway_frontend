@@ -47,6 +47,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/checkout/{id}/rpc": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Bounded read-only RPC for active unsettled payments. Only getGenesisHash with [] and getLatestBlockhash with [{commitment: finalized}]. No batches, notifications, arbitrary destinations or transaction submission. Limited to 12 requests per checkout/minute and 60 globally/minute in addition to existing limits. Provider failures are sanitized gateway errors. */
+    post: operations["checkoutRpc"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/checkout/{id}/transactions": {
     parameters: {
       query?: never;
@@ -67,6 +84,46 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    RpcId: string | number;
+    CheckoutRpcRequest: {
+      /** @constant */
+      jsonrpc: "2.0";
+      id: components["schemas"]["RpcId"];
+      /** @enum {string} */
+      method: "getGenesisHash" | "getLatestBlockhash";
+      params: unknown[];
+    } & (
+      | {
+          /** @constant */
+          method?: "getGenesisHash";
+          params?: unknown[];
+        }
+      | {
+          /** @constant */
+          method?: "getLatestBlockhash";
+          params?: {
+            /** @constant */
+            commitment: "finalized";
+          }[];
+        }
+    );
+    CheckoutRpcResult: {
+      /** @constant */
+      jsonrpc: "2.0";
+      id: components["schemas"]["RpcId"];
+      result:
+        | "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+        | {
+            context: {
+              slot: number;
+            };
+            value: {
+              /** @description Must decode to exactly 32 bytes. */
+              blockhash: string;
+              lastValidBlockHeight: number;
+            };
+          };
+    };
     CreatePayment: {
       usdCents: number;
       /** @description Opaque reference, not customer PII. */
@@ -84,6 +141,10 @@ export interface components {
       asset: "SOL";
       recipient: string;
       memo: string;
+      /**
+       * @deprecated
+       * @description Legacy public Devnet URL only; never the configured provider URL. New checkout clients use authenticated POST /v1/checkout/{id}/rpc instead.
+       */
       rpcUrl: string;
       quote: {
         usdPrice: string;
@@ -192,6 +253,33 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: components["responses"]["Payment"];
+      default: components["responses"]["Error"];
+    };
+  };
+  checkoutRpc: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PaymentId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CheckoutRpcRequest"];
+      };
+    };
+    responses: {
+      /** @description JSON-RPC 2.0 result, not a gateway data envelope. Provider credentials and extra fields are never returned. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CheckoutRpcResult"];
+        };
+      };
       default: components["responses"]["Error"];
     };
   };

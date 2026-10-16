@@ -6,6 +6,7 @@ test("browser wallet flow verifies only after authoritative settlement", async (
   const id = "22222222-2222-4222-8222-222222222222";
   let submitted = false;
   let settled = false;
+  const rpcMethods: string[] = [];
   await page.addInitScript(() => {
     Object.assign(window, {
       phantom: {
@@ -39,16 +40,21 @@ test("browser wallet flow verifies only after authoritative settlement", async (
     });
   });
   const headers = {
-    "access-control-allow-origin": "http://localhost:5173",
-    "access-control-allow-headers": "authorization, content-type",
+    "access-control-allow-origin": test.info().project.use.baseURL!,
+    "access-control-allow-headers":
+      "authorization, content-type, solana-client",
     "access-control-allow-methods": "GET, POST, OPTIONS",
   };
-  await page.route("https://api.devnet.solana.com/**", async (route) => {
+  await page.route("**/v1/checkout/**/rpc", async (route) => {
     if (route.request().method() === "OPTIONS") {
       await route.fulfill({ headers, body: "" });
       return;
     }
     const method = route.request().postDataJSON().method;
+    expect(route.request().headers().authorization).toBe(
+      `Bearer ${"a".repeat(64)}`,
+    );
+    rpcMethods.push(method);
     await route.fulfill({
       headers,
       json: {
@@ -56,7 +62,7 @@ test("browser wallet flow verifies only after authoritative settlement", async (
         id: route.request().postDataJSON().id,
         result:
           method === "getGenesisHash"
-            ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+            ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
             : {
                 context: { slot: 123 },
                 value: {
@@ -68,6 +74,7 @@ test("browser wallet flow verifies only after authoritative settlement", async (
     });
   });
   await page.route("**/v1/checkout/**", async (route) => {
+    if (route.request().url().endsWith("/rpc")) return route.fallback();
     if (route.request().method() === "OPTIONS") {
       await route.fulfill({ headers, body: "" });
       return;
@@ -117,6 +124,7 @@ test("browser wallet flow verifies only after authoritative settlement", async (
   await expect(page.locator('[aria-current="step"]')).toHaveText(
     "4Payment verified",
   );
+  expect(rpcMethods).toEqual(["getGenesisHash", "getLatestBlockhash"]);
 });
 
 test("USD form creates a payment and opens checkout with four progress steps", async ({
@@ -129,7 +137,7 @@ test("USD form creates a payment and opens checkout with four progress steps", a
     await route.fulfill({
       json: {
         data: {
-          checkoutUrl: `http://localhost:5173/checkout/${id}#${"a".repeat(64)}`,
+          checkoutUrl: `${test.info().project.use.baseURL}/checkout/${id}#${"a".repeat(64)}`,
         },
       },
     });
@@ -137,7 +145,7 @@ test("USD form creates a payment and opens checkout with four progress steps", a
   await page.route("**/v1/checkout/**", async (route) => {
     await route.fulfill({
       headers: {
-        "access-control-allow-origin": "http://localhost:5173",
+        "access-control-allow-origin": test.info().project.use.baseURL!,
         "access-control-allow-headers": "authorization",
       },
       json: {

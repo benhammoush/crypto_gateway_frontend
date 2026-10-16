@@ -190,7 +190,7 @@ export function Checkout({ id, token }: { id: string; token: string }) {
         );
       }
       setUncertain(true);
-      const signature = await sendPayment(payment);
+      const signature = await sendPayment(payment, token);
       submitted = true;
       candidate.current = signature;
       if (saveSession(savedKey, signature)) {
