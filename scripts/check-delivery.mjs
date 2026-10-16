@@ -68,8 +68,10 @@ export async function checkBackendContract(contract) {
 }
 
 /**
- * Verify only this target's project and retain its current immutable recovery ID.
+ * Verify only this target's project and retain any current immutable deployment ID.
  * No dev API is queried by a production run; native approval reviews dev manually.
+ * An absent production target records the approved no-predecessor limitation,
+ * not proof of empty provider history or completed dev acceptance/rehearsal.
  * @param env - The selected environment's provider identities and credential.
  * @returns Sanitized prior identity, not a claim of recovery eligibility.
  */
@@ -90,13 +92,18 @@ export async function currentTarget(env) {
   assert.ok(!project.link, "Disconnect competing Vercel Git deployment.");
   const previous = project.targets?.production?.id ?? null;
   if (env.DELIVERY_TARGET === "production") {
-    assert.match(
-      previous ?? "",
-      /^dpl_[a-zA-Z0-9]+$/,
-      "Agree first-production recovery before activation.",
+    assert.ok(
+      project.targets?.production == null ||
+        (typeof previous === "string" && /^dpl_[a-zA-Z0-9]+$/.test(previous)),
+      "Existing production target has no valid deployment identity; inspect provider.",
     );
   }
-  return { project: project.id, previous };
+  return {
+    project: project.id,
+    previous,
+    productionBootstrap:
+      env.DELIVERY_TARGET === "production" && previous === null,
+  };
 }
 
 if (
@@ -110,7 +117,7 @@ if (
     const previous = await currentTarget(process.env);
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
-      `\nBefore frontend mutation (recovery eligibility must be reviewed):\n\n${JSON.stringify(previous)}\n`,
+      `\nBefore frontend mutation (recovery eligibility must be reviewed):\n\n${JSON.stringify(previous)}\n${previous.productionBootstrap ? "\nProduction bootstrap: no prior production restore identity is available. Confirm dev acceptance/rollback rehearsal and this limitation before approval; inspect provider state before any fresh recovery dispatch.\n" : ""}`,
     );
   } catch {
     process.stderr.write(

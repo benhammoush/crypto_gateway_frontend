@@ -1,9 +1,25 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { Connection, Keypair } from "@solana/web3.js";
-import { sendPayment, WalletSubmissionUncertain } from "../src/wallet";
+import {
+  Connection,
+  PublicKey,
+  SystemInstruction,
+  Transaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
+import {
+  sendPayment,
+  WalletNotSubmitted,
+  WalletSubmissionUncertain,
+  walletDiagnostic,
+} from "../src/wallet";
 import type { Payment } from "../src/types";
 
-const payer = Keypair.fromSeed(new Uint8Array(32).fill(7)).publicKey;
+const payer = new PublicKey("11111111111111111111111111111111");
+type GenesisHash = Awaited<ReturnType<Connection["getGenesisHash"]>>;
+type LatestBlockhash = Awaited<ReturnType<Connection["getLatestBlockhash"]>>;
+const genesis = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG" as GenesisHash;
+const blockhash =
+  "11111111111111111111111111111111" as LatestBlockhash["blockhash"];
 const token = "a".repeat(64);
 const payment: Payment = {
   id: "fixture",
@@ -26,15 +42,12 @@ const payment: Payment = {
 };
 
 beforeEach(() => {
-  // SDK Buffer layout checks require a single Uint8Array realm. Test transaction
-  // construction in Node, and exercise the browser bundle separately in Playwright.
+  // Exercise message construction in Node and the browser bundle in Playwright.
   vi.stubGlobal("window", {});
-  vi.spyOn(Connection.prototype, "getGenesisHash").mockResolvedValue(
-    "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
-  );
+  vi.spyOn(Connection.prototype, "getGenesisHash").mockResolvedValue(genesis);
   vi.spyOn(Connection.prototype, "getLatestBlockhash").mockResolvedValue({
-    blockhash: "11111111111111111111111111111111",
-    lastValidBlockHeight: 100,
+    blockhash,
+    lastValidBlockHeight: 100n,
   });
 });
 afterEach(() => {
@@ -42,26 +55,51 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("builds exactly one transfer and one signer-bound payment memo", async () => {
-  const send = vi.fn(async (tx) => {
-    expect(tx.instructions).toHaveLength(2);
-    expect(tx.instructions[0].programId.toBase58()).toBe(
-      "11111111111111111111111111111111",
+it.each(["100000000", "9007199254740993"])(
+  "builds exactly one transfer of %s lamports and one signer-bound memo",
+  async (lamports) => {
+    const send = vi.fn(async (transaction: VersionedTransaction) => {
+      const wire = transaction.serialize();
+      expect(wire).toBeInstanceOf(Uint8Array);
+      const decoded = VersionedTransaction.deserialize(wire);
+      expect(decoded.version).toBe("legacy");
+      const tx = Transaction.from(wire);
+      expect(tx.feePayer?.toBase58()).toBe(payer.toBase58());
+      expect(tx.recentBlockhash).toBe(blockhash);
+      expect(decoded.message.header.numRequiredSignatures).toBe(1);
+      expect(tx.instructions).toHaveLength(2);
+      expect(tx.instructions[0].programId.toBase58()).toBe(
+        "11111111111111111111111111111111",
+      );
+      const transfer = SystemInstruction.decodeTransfer(tx.instructions[0]);
+      expect(transfer.fromPubkey.toBase58()).toBe(payer.toBase58());
+      expect(transfer.toPubkey.toBase58()).toBe(payment.recipient);
+      expect(transfer.lamports).toBe(BigInt(lamports));
+      expect(tx.instructions[1].programId.toBase58()).toBe(
+        "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+      );
+      expect(new TextDecoder().decode(tx.instructions[1].data)).toBe(
+        payment.memo,
+      );
+      expect(tx.instructions[1].keys[0].pubkey.toBase58()).toBe(
+        payer.toBase58(),
+      );
+      expect(tx.instructions[1].keys[0].isSigner).toBe(true);
+      return { signature: "1".repeat(64) };
+    });
+    window.phantom = {
+      solana: {
+        isPhantom: true,
+        connect: async () => ({ publicKey: payer }),
+        signAndSendTransaction: send,
+      },
+    };
+    expect(await sendPayment({ ...payment, lamports }, token)).toBe(
+      "1".repeat(64),
     );
-    expect(tx.instructions[1].data.toString("utf8")).toBe(payment.memo);
-    expect(tx.instructions[1].keys[0].isSigner).toBe(true);
-    return { signature: "1".repeat(64) };
-  });
-  window.phantom = {
-    solana: {
-      isPhantom: true,
-      connect: async () => ({ publicKey: payer }),
-      signAndSendTransaction: send,
-    },
-  };
-  expect(await sendPayment(payment, token)).toBe("1".repeat(64));
-  expect(send).toHaveBeenCalledOnce();
-});
+    expect(send).toHaveBeenCalledOnce();
+  },
+);
 
 it("does not submit on the wrong network or after expiry", async () => {
   const send = vi.fn();
@@ -72,12 +110,14 @@ it("does not submit on the wrong network or after expiry", async () => {
       signAndSendTransaction: send,
     },
   };
-  vi.mocked(Connection.prototype.getGenesisHash).mockResolvedValue("mainnet");
+  vi.mocked(Connection.prototype.getGenesisHash).mockResolvedValue(
+    "mainnet" as GenesisHash,
+  );
   await expect(sendPayment(payment, token)).rejects.toThrow(
     "not Solana Devnet",
   );
   vi.mocked(Connection.prototype.getGenesisHash).mockResolvedValue(
-    "EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+    "EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as GenesisHash,
   );
   await expect(sendPayment(payment, token)).rejects.toThrow(
     "not Solana Devnet",
@@ -115,6 +155,50 @@ it("keeps submission uncertain if the wallet returns no usable signature", async
   await expect(sendPayment(payment, token)).rejects.toBeInstanceOf(
     WalletSubmissionUncertain,
   );
+  await expect(sendPayment(payment, token)).rejects.toHaveProperty(
+    "diagnosticCode",
+    "WALLET_RESPONSE_INVALID",
+  );
+});
+
+it.each([
+  [-32603, "WALLET_RPC_-32603"],
+  [-32602, "WALLET_RPC_-32602"],
+  [-32003, "WALLET_RPC_-32003"],
+  [4200, "WALLET_RPC_4200"],
+  [999999, "WALLET_REQUEST_FAILED"],
+  ["-32603", "WALLET_REQUEST_FAILED"],
+  ["secret-provider-payload", "WALLET_REQUEST_FAILED"],
+])(
+  "exposes only a fixed diagnostic label for wallet code %s",
+  async (code, expected) => {
+    window.phantom = {
+      solana: {
+        isPhantom: true,
+        connect: async () => ({ publicKey: payer }),
+        signAndSendTransaction: vi.fn().mockRejectedValue({
+          code,
+          message: "secret-provider-payload",
+          data: { checkoutToken: token },
+        }),
+      },
+    };
+    const error = await sendPayment(payment, token).catch(
+      (error: unknown) => error,
+    );
+    expect(error).toBeInstanceOf(WalletSubmissionUncertain);
+    expect(error).toHaveProperty("diagnosticCode", expected);
+    expect((error as Error).message).not.toContain("secret-provider-payload");
+    expect((error as Error).message).not.toContain(token);
+  },
+);
+
+it("rejects arbitrary diagnostic strings restored from storage", () => {
+  expect(walletDiagnostic("WALLET_RPC_-32603")).toBe("WALLET_RPC_-32603");
+  expect(
+    walletDiagnostic("WALLET_RPC_-32603 secret-provider-payload"),
+  ).toBeUndefined();
+  expect(walletDiagnostic(null)).toBeUndefined();
 });
 
 it("authenticates only to the configured gateway, ignoring provider URL data", async () => {
@@ -131,6 +215,8 @@ it("authenticates only to the configured gateway, ignoring provider URL data", a
     expect(init.signal).toBeInstanceOf(AbortSignal);
     const body = JSON.parse(String(init.body));
     methods.push(body.method);
+    if (body.method === "getLatestBlockhash")
+      expect(body.params).toEqual([{ commitment: "finalized" }]);
     return Response.json({
       jsonrpc: "2.0",
       id: body.id,
@@ -162,4 +248,38 @@ it("authenticates only to the configured gateway, ignoring provider URL data", a
     ),
   ).toBe("1".repeat(64));
   expect(methods).toEqual(["getGenesisHash", "getLatestBlockhash"]);
+});
+
+it("does not retry rate-limited RPC preparation or open the wallet", async () => {
+  vi.mocked(Connection.prototype.getGenesisHash).mockRestore();
+  const fetchMock = vi.fn(async () => new Response("Limited", { status: 429 }));
+  vi.stubGlobal("fetch", fetchMock);
+  const connect = vi.fn();
+  const send = vi.fn();
+  window.phantom = {
+    solana: { isPhantom: true, connect, signAndSendTransaction: send },
+  };
+  await expect(sendPayment(payment, token)).rejects.toBeInstanceOf(
+    WalletNotSubmitted,
+  );
+  expect(fetchMock).toHaveBeenCalledOnce();
+  expect(connect).not.toHaveBeenCalled();
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("does not submit if payment expires during wallet connection", async () => {
+  const expiring = { ...payment };
+  const send = vi.fn();
+  window.phantom = {
+    solana: {
+      isPhantom: true,
+      connect: async () => {
+        expiring.expiresAt = Date.now() - 1;
+        return { publicKey: payer };
+      },
+      signAndSendTransaction: send,
+    },
+  };
+  await expect(sendPayment(expiring, token)).rejects.toThrow("expired before");
+  expect(send).not.toHaveBeenCalled();
 });

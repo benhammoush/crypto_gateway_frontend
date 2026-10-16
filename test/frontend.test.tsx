@@ -65,15 +65,74 @@ describe("checkout", () => {
     vi.mocked(sendPayment).mockRejectedValue(
       new WalletSubmissionUncertain(
         "Check wallet activity before paying again.",
+        undefined,
+        "WALLET_RPC_-32603",
       ),
     );
-    render(<Checkout id={payment.id} token="token" />);
+    const first = render(<Checkout id={payment.id} token="token" />);
     fireEvent.click(await screen.findByText("Pay with Phantom"));
     expect(await screen.findByRole("alert")).toHaveProperty(
       "textContent",
       "Check wallet activity before paying again.",
     );
     expect(screen.queryByText("Pay with Phantom")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain(
+      "WALLET_RPC_-32603",
+    );
+    expect(
+      sessionStorage.getItem(
+        `crypto_gateway:signature:${payment.id}:walletDiagnostic`,
+      ),
+    ).toBe("WALLET_RPC_-32603");
+    first.unmount();
+    render(<Checkout id={payment.id} token="token" />);
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "WALLET_RPC_-32603",
+    );
+    fireEvent.click(screen.getByText("Refresh status"));
+    await waitFor(() => expect(paymentStatus).toHaveBeenCalled());
+    expect(screen.queryByText("Pay with Phantom")).toBeNull();
+    expect(sendPayment).toHaveBeenCalledOnce();
+  });
+  it("never renders unrecognized stored diagnostics or clears the uncertainty guard", async () => {
+    const key = `crypto_gateway:signature:${payment.id}`;
+    sessionStorage.setItem(`${key}:uncertain`, "true");
+    sessionStorage.setItem(
+      `${key}:walletDiagnostic`,
+      "secret-provider-payload",
+    );
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    render(<Checkout id={payment.id} token="token" />);
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "UNAVAILABLE",
+    );
+    expect(screen.queryByText(/secret-provider-payload/)).toBeNull();
+    expect(screen.queryByText("Pay with Phantom")).toBeNull();
+    expect(sessionStorage.getItem(`${key}:uncertain`)).toBe("true");
+    expect(sendPayment).not.toHaveBeenCalled();
+  });
+  it("checks wallet method availability without invoking the provider or retrying", async () => {
+    const key = `crypto_gateway:signature:${payment.id}`;
+    sessionStorage.setItem(`${key}:uncertain`, "true");
+    const request = vi.fn();
+    const connect = vi.fn();
+    const signAndSendTransaction = vi.fn();
+    const phantom = { solana: { request, connect, signAndSendTransaction } };
+    vi.stubGlobal("phantom", phantom);
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    try {
+      render(<Checkout id={payment.id} token="token" />);
+      expect((await screen.findByRole("status")).textContent).toContain(
+        "Wallet API check: request available; direct sender available.",
+      );
+      expect(request).not.toHaveBeenCalled();
+      expect(connect).not.toHaveBeenCalled();
+      expect(signAndSendTransaction).not.toHaveBeenCalled();
+      expect(sendPayment).not.toHaveBeenCalled();
+      expect(sessionStorage.getItem(`${key}:uncertain`)).toBe("true");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
   it("does not open the wallet if the reload guard cannot be persisted", async () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
@@ -138,6 +197,9 @@ describe("checkout", () => {
     ).toBeNull();
   });
   it("shows verified only from backend settlement", async () => {
+    const key = `crypto_gateway:signature:${payment.id}`;
+    sessionStorage.setItem(`${key}:uncertain`, "true");
+    sessionStorage.setItem(`${key}:walletDiagnostic`, "WALLET_RPC_-32603");
     vi.mocked(paymentStatus).mockResolvedValue({
       ...payment,
       status: "settled",
@@ -152,6 +214,9 @@ describe("checkout", () => {
     expect(
       screen.getByText("Payment verified").getAttribute("aria-current"),
     ).toBe("step");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(sessionStorage.getItem(`${key}:walletDiagnostic`)).toBeNull();
+    expect(sessionStorage.getItem(`${key}:uncertain`)).toBeNull();
   });
   it("resubmits a saved signature after refresh without prompting another transfer", async () => {
     sessionStorage.setItem(

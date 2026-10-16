@@ -115,7 +115,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$SOURCE_SHA"
           fi
-          printf 'Source: `%s`\nTarget: %s\nRetain prior compatible frontend/Worker identities before mutation.\n' "$SOURCE_SHA" "$DELIVERY_TARGET" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Source: `%s`\nTarget: %s\nRetain any prior compatible frontend/Worker identities; first production requires explicit no-predecessor acceptance under DELIVERY.md.\n' "$SOURCE_SHA" "$DELIVERY_TARGET" >> "$GITHUB_STEP_SUMMARY"
           url=$(npx --yes vercel@64.2.0 deploy --project "$VERCEL_PROJECT_ID" --prod --yes --token "$VERCEL_TOKEN" \
             --build-env "VITE_APP_ENV=$VITE_APP_ENV" --build-env "VITE_API_ORIGIN=$VITE_API_ORIGIN")
           printf 'Deployment: %s\n' "$url" >> "$GITHUB_STEP_SUMMARY"
