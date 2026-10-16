@@ -97,8 +97,59 @@ it("reads only the selected target project and retains its prior identity", asyn
   expect(await currentTarget(env)).toEqual({
     project: env.VERCEL_PROJECT_ID,
     previous: "dpl_previous",
+    productionBootstrap: false,
   });
   expect(fetch.mock.calls[0][0]).toContain("/projects/prj_dev?");
   project.name = "other";
   await expect(currentTarget(env)).rejects.toThrow();
+});
+
+it("allows production bootstrap with an explicit no-predecessor record, not recovery acceptance", async () => {
+  const env = {
+    ...environment(),
+    DELIVERY_TARGET: "production",
+    VERCEL_PROJECT_ID: "prj_production",
+    OTHER_VERCEL_PROJECT_ID: "prj_dev",
+  };
+  const project = {
+    id: env.VERCEL_PROJECT_ID,
+    accountId: env.VERCEL_ORG_ID,
+    name: "crypto-gateway-production",
+  };
+  const fetch = vi.fn(async () => ({ ok: true, json: async () => project }));
+  vi.stubGlobal("fetch", fetch);
+  expect(await currentTarget(env)).toEqual({
+    project: env.VERCEL_PROJECT_ID,
+    previous: null,
+    productionBootstrap: true,
+  });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch.mock.calls[0][0]).toContain("/projects/prj_production?");
+  expect(fetch.mock.calls[0][1].method ?? "GET").toBe("GET");
+  for (const production of [
+    {},
+    { id: "invalid" },
+    { id: null },
+    { id: ["dpl_previous"] },
+  ]) {
+    project.targets = { production };
+    await expect(currentTarget(env)).rejects.toThrow(
+      "no valid deployment identity",
+    );
+  }
+  project.targets = { production: { id: "dpl_previous" } };
+  expect(await currentTarget(env)).toEqual({
+    project: env.VERCEL_PROJECT_ID,
+    previous: "dpl_previous",
+    productionBootstrap: false,
+  });
+});
+
+it("never treats unavailable provider state as bootstrap or retries a failed inspection", async () => {
+  const fetch = vi.fn(async () => ({ ok: false }));
+  vi.stubGlobal("fetch", fetch);
+  await expect(
+    currentTarget({ ...environment(), DELIVERY_TARGET: "production" }),
+  ).rejects.toThrow("project is unavailable");
+  expect(fetch).toHaveBeenCalledTimes(1);
 });

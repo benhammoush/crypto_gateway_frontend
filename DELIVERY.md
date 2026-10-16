@@ -8,7 +8,7 @@ Before hosted acceptance, verify that the runtime provides the raw request strea
 
 Protect main with required quality/browser checks and maintainer diff review; block force push/deletion including administrator bypass. Configure dev/production native environments restricted to main, production explicit approval and no bypass. Disable provider Git auto-deploy. If enforceable approval is unavailable, leave production disabled pending a separately approved alternative.
 
-Select an explicit compatible backend SHA and generated schema hash. Deploy backward-compatible backend first, then frontend. Record exact frontend/backend source revisions, versions, CI results, provider identities, migrations and prior recoverable pair. No cross-repository coordinator or latest-main fallback. Serialize target operations, preserve exact accepted source/lockfile identity, and repeat affected acceptance after dev drift.
+Select an explicit compatible backend SHA and generated schema hash. Deploy backward-compatible backend first, then frontend. Record exact frontend/backend source revisions, versions, CI results, provider identities, migrations and any prior recoverable pair. First production uses the approved no-predecessor exception below. No cross-repository coordinator or latest-main fallback. Serialize target operations, preserve exact accepted source/lockfile identity, and repeat affected acceptance after dev drift.
 
 Before production: manual localhost acceptance, live controlled dev wallet/verification/webhook acceptance, dependency advisory review, environment readback, monitoring and rollback/isolated restore rehearsal. Production smoke checks are read-only. Restore recorded compatible artifacts, never reverse payment data automatically.
 
@@ -34,7 +34,7 @@ Before production: manual localhost acceptance, live controlled dev wallet/verif
 - Use Vercel CLI 64.2.0 to deploy the selected checked source with environment-specific
   public build values. Each project's Vercel production slot serves its corresponding
   logical dev/production target, not an extra environment. Retain the
-  previous immutable deployment and compatible Worker version before dispatch;
+  previous immutable deployment and compatible Worker version when available before dispatch;
   workflow summaries are supporting records, not a promotion manifest service.
 - Accept the exact deployed dev pair and applicable rollback/isolated restore evidence.
   Recheck source/version/provider/configuration and migration identities after
@@ -45,7 +45,41 @@ Before production: manual localhost acceptance, live controlled dev wallet/verif
 - Production reruns require a new dispatch and approval after diagnosis. The workflow
   does not query dev or prove acceptance. Post-deployment HTTP smoke is read-only and
   not live payment acceptance. An interrupted deployment may already have changed one
-  provider; inspect both before retrying. First deployment has no rollback predecessor:
-  agree that recovery limitation separately rather than fabricate rehearsal evidence.
+  provider; inspect both before retrying. First production follows the approved
+  no-predecessor policy below rather than fabricating recovery evidence.
 - Token revocation, obsolete-secret removal, activation and production provisioning
   remain separate operator actions. Keep existing credentials untouched during alignment.
+
+## Approved first-production policy
+
+Before first production, validate the exact compatible dev pair with controlled
+payment/failure acceptance and rehearse dev application rollback. Restore and
+revalidate that candidate pair afterward; database recovery rehearsals use only
+an isolated non-production copy. Explicitly accept and record that no previous
+accepted production pair exists to restore. An initial resource/version or a
+successful smoke check is not an accepted rollback baseline.
+
+On failure or uncertain mutation, stop and inspect both providers, D1/schema state
+and payment/webhook/Cron effects. Recover only through fresh, separately authorized
+exact-SHA dispatches from main with new native production approval for each
+affected repository, using an exact dev-accepted compatible pair, backend first
+when both change. Repeat affected acceptance after source/configuration/schema
+compatibility changes. Never blindly retry, rerun production jobs, bypass approval,
+down-migrate/reset D1 or reverse/delete payment data. Webhook replay/data repair
+remain separately approved operations.
+
+Retain the first accepted immutable frontend deployment and compatible Worker
+version with both source SHAs/versions, configuration/schema identities and
+acceptance evidence as the future rollback candidate; reverify compatibility with
+current migrations before recovery. The frontend guard permits an absent target
+and records `productionBootstrap=true` with `previous=null` before mutation, but
+rejects malformed existing target identities or unavailable provider inspection.
+This is not proof of empty provider history, dev acceptance or rehearsal; those
+remain owner checks before native approval. The backend runbook's
+[matching policy](https://github.com/benhammoush/crypto_gateway_backend/blob/main/DELIVERY.md#approved-first-production-policy)
+also applies to the pair; each repository retains its own dispatch and approval.
+
+Per-environment `DEPLOY_ENABLED`, native approval, isolation and schema/provenance
+guards remain mandatory. This policy does not authorize publication, activation,
+provisioning, migrations, deployment, payment execution or data mutation.
+Production remains Devnet-only.
