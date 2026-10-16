@@ -20,7 +20,7 @@
     "check": "npm run lint && npm run format:check && npm run contract:check && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.99.0",
+    "@solana/web3.js": "^3.1.0",
     "buffer": "6.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
