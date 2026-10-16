@@ -50,6 +50,25 @@ Before production: manual localhost acceptance, live controlled dev wallet/verif
 - Token revocation, obsolete-secret removal, activation and production provisioning
   remain separate operator actions. Keep existing credentials untouched during alignment.
 
+## Read-only dev access verification
+
+After its reviewed source is merged, the separate **Verify dev access (read-only)**
+workflow may be manually dispatched from main under separate execution approval.
+It uses only the dev environment with deployment tracking disabled and requires
+deployment/demo flags to remain unset or false. The existing dev Vercel identities
+and `VERCEL_TOKEN` are used for one bounded authenticated GET of that exact project.
+No deployment, provider setting change, runtime-secret read, payment, dependency
+installation with credentials or automatic retry is performed.
+
+Account/project/name mismatches, competing Git linkage, invalid target identities
+and inaccessible provider state fail closed. An absent current target is reported
+without claiming empty history or an accepted predecessor. Successful inspection
+does not prove least-privilege token scope, absence of other deployment writers,
+origin ownership, runtime configuration, deployment capability or hosted-payment
+acceptance. Retain the workflow source SHA and sanitized result; subsequent setup,
+activation and deployment remain separate approvals. Never enable delivery merely
+to run this check.
+
 ## Approved first-production policy
 
 Before first production, validate the exact compatible dev pair with controlled
