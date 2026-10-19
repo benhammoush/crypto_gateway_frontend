@@ -1,1 +1,1 @@
-export { merchantHandler as default } from "../../server/merchant";
+export { merchantHandler as default } from "../../server/merchant.js";
