@@ -8,7 +8,7 @@ import {
   vi,
 } from "vitest";
 import { createServer, request } from "node:http";
-import type { Server } from "node:http";
+import type { IncomingHttpHeaders, Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createHmac } from "node:crypto";
 import { merchantHandler } from "../server/merchant";
@@ -43,16 +43,21 @@ function call(
   path: string,
   body: string,
   headers: Record<string, string> = {},
+  method = "POST",
 ) {
-  return new Promise<{ status: number; body: string }>((resolve, reject) => {
+  return new Promise<{
+    status: number;
+    body: string;
+    headers: IncomingHttpHeaders;
+  }>((resolve, reject) => {
     const req = request(
       {
         hostname: "127.0.0.1",
         port,
         path,
-        method: "POST",
+        method,
         headers: {
-          "content-type": "application/json",
+          ...(method === "POST" ? { "content-type": "application/json" } : {}),
           origin: "http://localhost:5173",
           "idempotency-key": "fixture_key_1234",
           ...headers,
@@ -63,13 +68,50 @@ function call(
         res.on("data", (data) => {
           result += data;
         });
-        res.on("end", () => resolve({ status: res.statusCode!, body: result }));
+        res.on("end", () =>
+          resolve({
+            status: res.statusCode!,
+            body: result,
+            headers: res.headers,
+          }),
+        );
       },
     );
     req.on("error", reject);
     req.end(body);
   });
 }
+
+it("reports only a non-cacheable demo flag without credentials or upstream requests", async () => {
+  const upstream = vi.fn();
+  vi.stubGlobal("fetch", upstream);
+  for (const flag of ["true", "false", "", "TRUE"]) {
+    vi.stubEnv("DEMO_ENABLED", flag);
+    const result = await call("/api/demo/status", "", {}, "GET");
+    expect(result.status).toBe(200);
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(JSON.parse(result.body)).toEqual({
+      data: { enabled: flag === "true" },
+    });
+    expect(result.body).not.toContain("fixture_merchant");
+    expect(result.body).not.toContain("fixture_webhook");
+  }
+  expect((await call("/api/demo/status", "{}")).status).toBe(405);
+  expect(upstream).not.toHaveBeenCalled();
+});
+
+it("keeps the payment guard authoritative after an earlier enabled status response", async () => {
+  const upstream = vi.fn();
+  vi.stubGlobal("fetch", upstream);
+  expect(
+    JSON.parse((await call("/api/demo/status", "", {}, "GET")).body),
+  ).toEqual({ data: { enabled: true } });
+  vi.stubEnv("DEMO_ENABLED", "false");
+  expect((await call("/api/demo/payments", '{"usdCents":100}')).status).toBe(
+    503,
+  );
+  expect(upstream).not.toHaveBeenCalled();
+});
 
 it("creates payments server-side without returning the merchant credential", async () => {
   const upstream = vi.fn(async (_url: string, options: RequestInit) => {

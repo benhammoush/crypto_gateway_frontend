@@ -15,6 +15,16 @@ export async function merchantHandler(
     res.end(JSON.stringify({ error: { code: "DEMO_ERROR", message } }));
   };
   try {
+    if (req.url?.split("?")[0] === "/api/demo/status") {
+      if (req.method !== "GET") return fail(405, "Use a GET request.");
+      // Public UI hint only: no credential/configuration values or upstream calls.
+      res.end(
+        JSON.stringify({
+          data: { enabled: process.env.DEMO_ENABLED === "true" },
+        }),
+      );
+      return;
+    }
     if (
       req.method !== "POST" ||
       !req.headers["content-type"]?.startsWith("application/json")

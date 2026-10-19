@@ -16,10 +16,36 @@ function Demo() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState<{ cents: number; key: string }>();
+  const [availability, setAvailability] = useState<
+    "checking" | "enabled" | "disabled" | "unavailable"
+  >("checking");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void request<{ enabled: boolean }>("/api/demo/status", {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then((status) => {
+        if (controller.signal.aborted) return;
+        setAvailability(
+          typeof status.enabled === "boolean"
+            ? status.enabled
+              ? "enabled"
+              : "disabled"
+            : "unavailable",
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setAvailability("unavailable");
+      });
+    return () => controller.abort();
+  }, []);
 
   async function pay(event: FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || availability !== "enabled") return;
     setError("");
     setBusy(true);
     try {
@@ -76,17 +102,26 @@ function Demo() {
             inputMode="decimal"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            disabled={busy}
+            disabled={busy || availability !== "enabled"}
             autoComplete="off"
             required
           />
           <span className="currency">USD</span>
         </div>
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy || availability !== "enabled"}>
           {busy ? "Opening checkout…" : "Pay"}
           <span aria-hidden="true">↗</span>
         </button>
       </form>
+      {availability !== "enabled" && (
+        <p className="notice" role="status">
+          {availability === "checking"
+            ? "Checking demo availability…"
+            : availability === "disabled"
+              ? "Demo payments are disabled."
+              : "Demo availability could not be checked. Payments remain unavailable; reload to try again."}
+        </p>
+      )}
       {error && (
         <p className="notice error" role="alert">
           {error}
