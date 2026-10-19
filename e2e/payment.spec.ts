@@ -161,10 +161,36 @@ test("browser wallet flow verifies only after authoritative settlement", async (
   expect(rpcMethods).toEqual(["getGenesisHash", "getLatestBlockhash"]);
 });
 
+test("disabled demo explains availability and blocks payment creation", async ({
+  page,
+}) => {
+  let posts = 0;
+  await page.route("**/api/demo/status", (route) =>
+    route.fulfill({ json: { data: { enabled: false } } }),
+  );
+  await page.route("**/api/demo/payments", (route) => {
+    posts++;
+    return route.abort();
+  });
+  await page.goto("/");
+  await expect(page.getByRole("status")).toHaveText(
+    "Demo payments are disabled.",
+  );
+  await expect(
+    page.getByRole("button", { name: "Pay", exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByLabel("Amount in USD")).toBeDisabled();
+  expect(posts).toBe(0);
+});
+
 test("USD form creates a payment and opens checkout with four progress steps", async ({
   page,
 }) => {
   const id = "11111111-1111-4111-8111-111111111111";
+  await page.route("**/api/demo/status", async (route) => {
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({ json: { data: { enabled: true } } });
+  });
   await page.route("**/api/demo/payments", async (route) => {
     expect(route.request().postDataJSON()).toEqual({ usdCents: 1234 });
     expect(route.request().headers().authorization).toBeUndefined();

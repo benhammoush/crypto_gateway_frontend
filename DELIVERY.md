@@ -4,6 +4,14 @@ Local → dev → production, no staging. Independent frontend projects/aliases,
 
 Vercel functions in `api/demo` reuse the server-only merchant adapter. Configure `DEMO_ENABLED`, `DEMO_FRONTEND_ORIGIN`, `GATEWAY_ORIGIN`, `DEMO_MERCHANT_API_KEY` and optional `DEMO_WEBHOOK_SECRET` as server runtime values. Never expose them through VITE. The example receiver verifies raw-body HMAC/timestamps but its deduplication is in memory and demonstrates acknowledgment only; real fulfillment needs durable event deduplication.
 
+`GET /api/demo/status` is an uncached, read-only UI hint returning only
+`data.enabled`, true only when the server's `DEMO_ENABLED` is exactly `true`.
+It never returns credentials/configuration values, probes dependencies or creates
+payments. The homepage disables Pay and explains disabled mode; while checking or
+if the status is inaccessible/malformed, payment entry stays unavailable. This flag
+is not a readiness or payment-acceptance attestation. The existing POST payment
+endpoint always rechecks server configuration; the UI hint never authorizes it.
+
 Before hosted acceptance, verify that the runtime provides the raw request stream without pre-parsing; never verify webhook signatures against reserialized JSON. Add native/edge abuse controls to public amount entry. The backend accepts only configured webhook HTTPS destinations; local HTTP receivers require fixtures or an explicitly approved public tunnel, not disabling webhook security.
 
 Protect main with required quality/browser checks and maintainer diff review; block force push/deletion including administrator bypass. Configure dev/production native environments restricted to main, production explicit approval and no bypass. Disable provider Git auto-deploy. If enforceable approval is unavailable, leave production disabled pending a separately approved alternative.
