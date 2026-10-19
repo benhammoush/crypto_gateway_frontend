@@ -61,6 +61,9 @@ describe("exact public configuration boundary", () => {
     "VITE_JUPITER_API_KEY",
     "VITE_CHECKOUT_SECRET",
     "VITE_VERCEL_TOKEN",
+    "VITE_GATEWAY_ACCESS_CLIENT_ID",
+    "VITE_GATEWAY_ACCESS_CLIENT_SECRET",
+    "VITE_VERCEL_DEV_SMOKE_BYPASS",
     `${metadataKey}_EXTRA`,
     "VITE_API_ORIGIN_SECRET",
     "VITE_UNKNOWN",
@@ -97,6 +100,14 @@ describe("exact public configuration boundary", () => {
     vi.stubEnv(metadataKey, "synthetic-provider-private-sentinel");
     vi.stubEnv("VITE_API_ORIGIN_SECRET", "synthetic-prefix-private-sentinel");
     vi.stubEnv("DEMO_MERCHANT_API_KEY", "synthetic-server-private-sentinel");
+    for (const key of [
+      "GATEWAY_ACCESS_CLIENT_ID",
+      "GATEWAY_ACCESS_CLIENT_SECRET",
+      "GATEWAY_ACCESS_CI_CLIENT_ID",
+      "GATEWAY_ACCESS_CI_CLIENT_SECRET",
+      "VERCEL_DEV_SMOKE_BYPASS",
+    ])
+      vi.stubEnv(key, "synthetic-access-private-sentinel");
     const config = await viteConfig({ mode: "production", command: "build" });
     expect(config.envPrefix).toEqual([]);
     const root = directory();
@@ -130,6 +141,7 @@ describe("exact public configuration boundary", () => {
     expect(code).not.toContain("synthetic-provider-private-sentinel");
     expect(code).not.toContain("synthetic-prefix-private-sentinel");
     expect(code).not.toContain("synthetic-server-private-sentinel");
+    expect(code).not.toContain("synthetic-access-private-sentinel");
     const context = {};
     runInNewContext(code, context, { timeout: 1000 });
     expect(context.result.app).toBe("dev");

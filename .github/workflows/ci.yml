@@ -110,13 +110,27 @@ jobs:
           VITE_APP_ENV: ${{ inputs.target || 'dev' }}
           VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
           TARGET_ORIGIN: ${{ vars.TARGET_ORIGIN }}
+          VERCEL_DEV_SMOKE_BYPASS: ${{ (inputs.target || 'dev') == 'dev' && secrets.VERCEL_DEV_SMOKE_BYPASS || '' }}
         run: |
           node control/scripts/check-delivery.mjs
+          if [ "$DELIVERY_TARGET" = dev ]; then
+            node control/scripts/smoke-dev.mjs --preflight
+          fi
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$SOURCE_SHA"
           fi
           printf 'Source: `%s`\nTarget: %s\nRetain any prior compatible frontend/Worker identities; first production requires explicit no-predecessor acceptance under DELIVERY.md.\n' "$SOURCE_SHA" "$DELIVERY_TARGET" >> "$GITHUB_STEP_SUMMARY"
-          url=$(npx --yes vercel@64.2.0 deploy --project "$VERCEL_PROJECT_ID" --prod --yes --token "$VERCEL_TOKEN" \
-            --build-env "VITE_APP_ENV=$VITE_APP_ENV" --build-env "VITE_API_ORIGIN=$VITE_API_ORIGIN")
+          if [ "$DELIVERY_TARGET" = dev ]; then
+            url=$(npx --yes vercel@64.2.0 deploy --project "$VERCEL_PROJECT_ID" --prod --yes --token "$VERCEL_TOKEN" \
+              --meta "githubCommitSha=$SOURCE_SHA" \
+              --build-env "VITE_APP_ENV=$VITE_APP_ENV" --build-env "VITE_API_ORIGIN=$VITE_API_ORIGIN")
+          else
+            url=$(npx --yes vercel@64.2.0 deploy --project "$VERCEL_PROJECT_ID" --prod --yes --token "$VERCEL_TOKEN" \
+              --build-env "VITE_APP_ENV=$VITE_APP_ENV" --build-env "VITE_API_ORIGIN=$VITE_API_ORIGIN")
+          fi
           printf 'Deployment: %s\n' "$url" >> "$GITHUB_STEP_SUMMARY"
-          curl --fail --silent --show-error --max-time 30 "$TARGET_ORIGIN/" --output /dev/null
+          if [ "$DELIVERY_TARGET" = dev ]; then
+            DEPLOYMENT_URL="$url" node control/scripts/smoke-dev.mjs
+          else
+            curl --fail --silent --show-error --max-time 30 "$TARGET_ORIGIN/" --output /dev/null
+          fi

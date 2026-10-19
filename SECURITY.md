@@ -13,4 +13,15 @@ The frontend uses pinned Solana web3.js 3.1.0, removing the inherited v1 jayson/
 
 The example is not an authenticated merchant dashboard. Origin checks do not prevent bots from calling a public demo. Configure provider-native abuse controls before activation. In-memory webhook acknowledgment is not a fulfillment ledger.
 
+Private dev requires provider-enforced Vercel Authentication on **all** dev project
+deployments and Cloudflare Access Service Auth on the dev Worker; source alone does
+not enable either. The dev-only proxy allows only checkout status, signature and
+bounded read-only preparation RPC routes. It preserves checkout bearer authorization
+and never exposes Access service credentials. Runtime secrets and the independent
+dev CI bypass/token belong only in their selected provider/GitHub secret stores.
+Automation credentials are not end-user authorization and may have wider access than
+the smoke paths: scope, expiry and rotation remain operator responsibilities. No
+public webhook exception or browser-visible machine token is included. See DELIVERY.md
+for fail-closed cutover and the unchanged production boundary.
+
 Manual wallet acceptance, hosted environment protections, strict browser security policy for selected origins, webhook raw-body behavior and recovery remain release prerequisites. Checkout capabilities are bearer secrets; exclude them from analytics/logging and keep the no-referrer policy.

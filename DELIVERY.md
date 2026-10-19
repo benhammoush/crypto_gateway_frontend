@@ -67,6 +67,66 @@ Before production: manual localhost acceptance, live controlled dev wallet/verif
 
 ## Read-only dev access verification
 
+### Private dev pilot (local implementation, not enabled by source)
+
+The logical dev build (`VITE_APP_ENV=dev`) now uses same-origin
+`/api/gateway/v1/checkout/:id` for GET status and POST `transactions`/`rpc`.
+Local and production builds retain direct API transport. The fixed-route server
+proxy is dev-only, bounded to 4096 request bytes, 65536 response bytes and a ten-second
+input deadline plus a ten-second upstream deadline. It follows no redirects and
+never retries. Checkout Authorization remains separate from Access authentication.
+The existing merchant adapter also authenticates to the private dev Worker.
+
+Required **server-only Vercel dev runtime** values are `GATEWAY_ACCESS_CLIENT_ID`
+and `GATEWAY_ACCESS_CLIENT_SECRET`, alongside the existing exact
+`GATEWAY_ORIGIN=https://crypto-gateway-dev.benhxm.workers.dev` and
+`DEMO_FRONTEND_ORIGIN=https://crypto-gateway-dev.vercel.app`. Missing/partial
+credentials fail closed; credentials on a non-dev merchant target are rejected.
+Never put these in VITE values or production. Existing merchant and checkout bearer
+authorization, creation WAF limits and disabled-demo guards remain required.
+
+The frontend GitHub **dev environment** additionally needs
+`VERCEL_DEV_SMOKE_BYPASS`. Dev delivery preflights it before mutation, tags the
+deployment with the selected source, then checks provider association of the stable
+alias and immutable deployment and performs bounded authenticated GETs to both.
+It checks homepage identity, `data.enabled=false` and one synthetic checkout GET
+returning typed `PAYMENTS_DISABLED`. It never creates a payment or reads a payment
+record while disabled. These dev smoke checks intentionally require payments/demo
+off for this pilot; a later always-on policy needs separately reviewed acceptance.
+Production does not receive the dev bypass credential and retains its existing smoke.
+
+Separate owner setup/cutover authorization is required: confirm Access tenant
+eligibility/cost and identities, enter generated secrets directly in dashboards,
+complete the pending demo-off deployment, stage compatible reviewed code and CI,
+then apply Vercel Authentication **All Deployments** on this dev project and
+Cloudflare **Service Auth** on this dev Worker. Use independent runtime/CI Access
+tokens, with no public bypass or broad exception. Inspect alternative API/project
+URLs and keep Worker previews disabled. Validate owner login, anonymous rejection
+on stable/immutable URLs, function access, CI and direct API rejection before
+claiming private hosting. Neither source nor green fixtures apply these policies.
+
+The Vercel automation bypass grants project-wide protected-deployment access, not
+just smoke-path access. Keep it in the dev GitHub secret store, out of browser code,
+logs, URLs and shared links. Rotation/expiry ownership must be recorded separately.
+Access service credentials are opaque; do not reuse merchant-key format validation.
+The proxy strips browser cookies, forwarded identities and bypass headers; it does
+not claim to preserve browser-IP throttling at the Worker. The backend sees proxy
+egress IPs; retain checkout/merchant/global limits and frontend WAF controls.
+
+Allow an explicitly agreed dev-only cutover window. Do not merge/deploy without
+required runtime settings and CI credentials prepared; do not weaken failed checks
+to complete cutover. There is initially no accepted private rollback pair. On failure
+keep access blocked and business features off; diagnose before any fresh authorized
+repair. Do not reopen anonymous access, replay transfers/webhooks, reset D1 or restore
+an incompatible direct-browser release automatically. Production and other projects
+remain outside this pilot. Private-hosting acceptance does not resume the failed
+Devnet payment test or establish hosted payment/recovery acceptance.
+
+Official references: [Access service tokens](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/),
+[Vercel automation bypass](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation).
+
+### Existing provider metadata verification
+
 After its reviewed source is merged, the separate **Verify dev access (read-only)**
 workflow may be manually dispatched from main under separate execution approval.
 It uses only the dev environment with deployment tracking disabled and requires

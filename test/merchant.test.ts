@@ -182,3 +182,38 @@ it("verifies raw webhook bytes and timestamp and acknowledges duplicates", async
     ).status,
   ).toBe(401);
 });
+
+it("authenticates private dev upstream without replacing merchant bearer or leaking Access secrets", async () => {
+  vi.stubEnv("GATEWAY_ORIGIN", "https://crypto-gateway-dev.benhxm.workers.dev");
+  vi.stubEnv("DEMO_FRONTEND_ORIGIN", "https://crypto-gateway-dev.vercel.app");
+  vi.stubEnv("GATEWAY_ACCESS_CLIENT_ID", "fixture-access-id");
+  vi.stubEnv("GATEWAY_ACCESS_CLIENT_SECRET", "fixture-access-secret");
+  const upstream = vi.fn(async (_url: string, options: RequestInit) => {
+    expect(options.headers).toMatchObject({
+      authorization: "Bearer fixture_merchant_credential_1234567890",
+      "CF-Access-Client-Id": "fixture-access-id",
+      "CF-Access-Client-Secret": "fixture-access-secret",
+    });
+    return Response.json({
+      data: {
+        checkoutUrl:
+          "https://crypto-gateway-dev.vercel.app/checkout/fixture#token",
+      },
+    });
+  });
+  vi.stubGlobal("fetch", upstream);
+  const result = await call("/api/demo/payments", '{"usdCents":10}', {
+    origin: "https://crypto-gateway-dev.vercel.app",
+  });
+  expect(result.status).toBe(200);
+  expect(result.body).not.toContain("fixture-access");
+  vi.stubEnv("GATEWAY_ACCESS_CLIENT_SECRET", "");
+  expect(
+    (
+      await call("/api/demo/payments", '{"usdCents":10}', {
+        origin: "https://crypto-gateway-dev.vercel.app",
+      })
+    ).status,
+  ).toBe(503);
+  expect(upstream).toHaveBeenCalledOnce();
+});

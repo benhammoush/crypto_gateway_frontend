@@ -21,7 +21,10 @@ it("loads every emitted function entry point in native Node ESM and serves disab
       "api/demo/status.ts",
       "api/demo/payments.ts",
       "api/demo/webhook.ts",
+      "api/gateway/[...path].ts",
       "server/merchant.ts",
+      "server/gateway.ts",
+      "server/proxy.ts",
     ]) {
       const output = ts.transpileModule(readFileSync(file, "utf8"), {
         fileName: file,
@@ -43,6 +46,8 @@ it("loads every emitted function entry point in native Node ESM and serves disab
       import status from './api/demo/status.js';
       import payments from './api/demo/payments.js';
       import webhook from './api/demo/webhook.js';
+      import proxy from './api/gateway/[...path].js';
+      assert.equal(typeof proxy, 'function');
       assert.equal(typeof status, 'function');
       assert.equal(payments, status);
       assert.equal(webhook, status);

@@ -1,8 +1,10 @@
 import { Payment } from "./types";
 
 const origin =
-  import.meta.env.VITE_API_ORIGIN ??
-  (import.meta.env.DEV ? "http://localhost:8787" : "");
+  import.meta.env.VITE_APP_ENV === "dev"
+    ? `${window.location.origin}/api/gateway`
+    : (import.meta.env.VITE_API_ORIGIN ??
+      (import.meta.env.DEV ? "http://localhost:8787" : ""));
 
 export class ApiError extends Error {
   constructor(
@@ -45,7 +47,7 @@ export function paymentStatus(
   token: string,
   signal?: AbortSignal,
 ): Promise<Payment> {
-  return request(`${origin}/v1/checkout/${id}`, {
+  return request(`${origin}/v1/checkout/${encodeURIComponent(id)}`, {
     headers: { authorization: `Bearer ${token}` },
     signal,
   });
@@ -56,14 +58,17 @@ export function submitSignature(
   token: string,
   signature: string,
 ): Promise<Payment> {
-  return request(`${origin}/v1/checkout/${id}/transactions`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
+  return request(
+    `${origin}/v1/checkout/${encodeURIComponent(id)}/transactions`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ signature }),
     },
-    body: JSON.stringify({ signature }),
-  });
+  );
 }
 
 /** Parse user input without floating-point multiplication. */

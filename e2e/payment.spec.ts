@@ -76,6 +76,14 @@ test("browser wallet flow verifies only after authoritative settlement", async (
     "access-control-allow-methods": "GET, POST, OPTIONS",
   };
   await page.route("**/v1/checkout/**/rpc", async (route) => {
+    if (process.env.VITE_APP_ENV === "dev") {
+      expect(new URL(route.request().url()).origin).toBe(
+        test.info().project.use.baseURL,
+      );
+      expect(new URL(route.request().url()).pathname).toContain(
+        "/api/gateway/v1/checkout/",
+      );
+    }
     if (route.request().method() === "OPTIONS") {
       await route.fulfill({ headers, body: "" });
       return;
@@ -108,6 +116,14 @@ test("browser wallet flow verifies only after authoritative settlement", async (
     });
   });
   await page.route("**/v1/checkout/**", async (route) => {
+    if (process.env.VITE_APP_ENV === "dev") {
+      expect(new URL(route.request().url()).origin).toBe(
+        test.info().project.use.baseURL,
+      );
+      expect(new URL(route.request().url()).pathname).toContain(
+        "/api/gateway/v1/checkout/",
+      );
+    }
     if (route.request().url().endsWith("/rpc")) return route.fallback();
     if (route.request().method() === "OPTIONS") {
       await route.fulfill({ headers, body: "" });

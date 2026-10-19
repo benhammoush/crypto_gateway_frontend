@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { gatewayAccessHeaders, gatewayJson } from "./gateway.js";
 
 const seenEvents = new Set<string>();
 
@@ -107,6 +108,7 @@ export async function merchantHandler(
       redirect: "error",
       signal: AbortSignal.timeout(20_000),
       headers: {
+        ...gatewayAccessHeaders(gatewayOrigin),
         authorization: `Bearer ${credential}`,
         "content-type": "application/json",
         "idempotency-key": key,
@@ -116,7 +118,8 @@ export async function merchantHandler(
         merchantReference: `demo:${key}`,
       }),
     });
-    const result = (await upstream.json()) as {
+    const { body } = await gatewayJson(upstream);
+    const result = body as {
       data?: { checkoutUrl?: string };
     };
     if (!upstream.ok || !result.data?.checkoutUrl)

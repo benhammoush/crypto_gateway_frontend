@@ -50,3 +50,9 @@ Never infer latest main. `local` supports initial development only and blocks re
 - `npm audit --audit-level=high`
 
 Builds require explicit `VITE_APP_ENV` and `VITE_API_ORIGIN`; only those public variables are permitted. Do not put secrets in VITE variables. See [delivery](DELIVERY.md) and [security](SECURITY.md).
+
+Hosted dev uses a same-origin, fixed-route checkout proxy; local and production
+retain their configured direct API transport. The private-dev implementation
+requires separately authorized provider protection and server/CI credentials before
+deployment; it does not enable authentication by itself. Ordinary local development
+continues to use `VITE_APP_ENV=local`, without Access credentials.
