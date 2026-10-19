@@ -12,6 +12,13 @@ if the status is inaccessible/malformed, payment entry stays unavailable. This f
 is not a readiness or payment-acceptance attestation. The existing POST payment
 endpoint always rechecks server configuration; the UI hint never authorizes it.
 
+Function entry points use explicit emitted `.js` import extensions for native Node
+ESM resolution; TypeScript resolves those specifiers to their `.ts` source files.
+The native-Node regression fixture transpiles all three entry points and their
+shared handler without a bundler/TS loader, then checks imports and disabled status
+over loopback HTTP. This catches resolution failures hidden by Vitest/tsx but is
+not a substitute for read-only verification of the deployed Vercel functions.
+
 Before hosted acceptance, verify that the runtime provides the raw request stream without pre-parsing; never verify webhook signatures against reserialized JSON. Add native/edge abuse controls to public amount entry. The backend accepts only configured webhook HTTPS destinations; local HTTP receivers require fixtures or an explicitly approved public tunnel, not disabling webhook security.
 
 Protect main with required quality/browser checks and maintainer diff review; block force push/deletion including administrator bypass. Configure dev/production native environments restricted to main, production explicit approval and no bypass. Disable provider Git auto-deploy. If enforceable approval is unavailable, leave production disabled pending a separately approved alternative.
