@@ -19,7 +19,13 @@ if (
 for (const key of Object.keys(env)) {
   if (
     key.startsWith("VITE_") &&
-    !["VITE_APP_ENV", "VITE_API_ORIGIN"].includes(key)
+    ![
+      "VITE_APP_ENV",
+      "VITE_API_ORIGIN",
+      // Vercel injects this even with autoExposeSystemEnvs=false. Vite must
+      // exclude it from client configuration; it is not an application input.
+      "VITE_VERCEL_OBSERVABILITY_CLIENT_CONFIG",
+    ].includes(key)
   ) {
     throw new Error(
       "Unexpected public configuration; review for secret exposure.",
