@@ -21,13 +21,19 @@ not a substitute for read-only verification of the deployed Vercel functions.
 
 Before hosted acceptance, verify that the runtime provides the raw request stream without pre-parsing; never verify webhook signatures against reserialized JSON. Add native/edge abuse controls to public amount entry. The backend accepts only configured webhook HTTPS destinations; local HTTP receivers require fixtures or an explicitly approved public tunnel, not disabling webhook security.
 
-Protect main with required quality/browser checks and maintainer diff review; block force push/deletion including administrator bypass. Configure dev/production native environments restricted to main, production explicit approval and no bypass. Disable provider Git auto-deploy. If enforceable approval is unavailable, leave production disabled pending a separately approved alternative.
+Protect main with strict required `quality`/`browser` (GitHub Actions) and `CodeRabbit` checks bound to their respective apps, at least one approving review, stale-review dismissal, independent last-push approval and resolved conversations; block force push/deletion including administrator bypass. A successful CodeRabbit status alone is not approval: verify that its integration reviews and approves the current head. Configure dev/production native environments restricted to main, production explicit approval and no bypass. Disable provider Git auto-deploy. If enforceable approval is unavailable, leave production disabled pending a separately approved alternative.
 
 Select an explicit compatible backend SHA and generated schema hash. Deploy backward-compatible backend first, then frontend. Record exact frontend/backend source revisions, versions, CI results, provider identities, migrations and any prior recoverable pair. First production uses the approved no-predecessor exception below. No cross-repository coordinator or latest-main fallback. Serialize target operations, preserve exact accepted source/lockfile identity, and repeat affected acceptance after dev drift.
 
 Before production: manual localhost acceptance, live controlled dev wallet/verification/webhook acceptance, dependency advisory review, environment readback, monitoring and rollback/isolated restore rehearsal. Production smoke checks are read-only. Restore recorded compatible artifacts, never reverse payment data automatically.
 
 ## Shared manually approved production flow
+
+### Assigned task to manual merge
+
+The owner assigns a bounded task and authorizes its endpoint; no backlog pickup is automatic. The assistant owns implementation, affected checks, authorized PR publication and valid CI/review repairs, including resuming a paused CodeRabbit review. `.coderabbit.yaml` enables real approval after review and prevents author-triggered approval/resolve overrides. The owner decides when to merge after current-head checks and approval pass. No automatic merger, merge PAT or separate orchestration service is required.
+
+An authorized human merge triggers the existing main-push dev pipeline and hosted smoke when deployment is enabled. Verify exact source/provider identities and affected dev behavior, not just PR CI. Private-dev access and provisioning retain their separate prerequisites; this workflow grants no new credentials or activation. Production uses the exact accepted dev source pair, manual dispatch and native approval as described below.
 
 - Merge → existing quality/browser checks on the exact merged source → isolated dev.
   Manual dev redeployment and production dispatch run from main with an exact full
