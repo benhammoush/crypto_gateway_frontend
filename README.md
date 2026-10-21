@@ -21,5 +21,6 @@ server-side; Phantom signs and submits the transaction.
 
 The gateway verifies settlement independently. Checkout reports **Payment verified**
 only after backend confirmation; an uncertain wallet submission never triggers an
-automatic second transfer. Checkout capabilities are kept in tab-scoped storage,
-separate from merchant credentials.
+automatic second transfer. Checkout capabilities use tab-scoped storage when
+available; otherwise they remain in the URL fragment for that load, and payment
+submission is blocked.
