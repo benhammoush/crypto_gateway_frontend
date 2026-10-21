@@ -2,6 +2,20 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 const seenEvents = new Set<string>();
+const paymentErrorCodes = new Set([
+  "UNAUTHORIZED",
+  "NOT_CONFIGURED",
+  "PAYMENTS_DISABLED",
+  "ORIGIN_REJECTED",
+  "RATE_LIMITED",
+  "INVALID_REQUEST",
+  "INVALID_IDEMPOTENCY_KEY",
+  "IDEMPOTENCY_CONFLICT",
+  "PRICE_UNAVAILABLE",
+  "RPC_UNAVAILABLE",
+  "WRONG_NETWORK",
+  "INTERNAL_ERROR",
+]);
 
 /** Minimal server-only adapter, intentionally separate from the browser bundle. */
 export async function merchantHandler(
@@ -118,12 +132,30 @@ export async function merchantHandler(
     });
     const result = (await upstream.json()) as {
       data?: { checkoutUrl?: string };
-    };
-    if (!upstream.ok || !result.data?.checkoutUrl)
-      return fail(
-        upstream.status === 429 ? 429 : 503,
-        "Unable to create payment. Retry with the same amount.",
-      );
+      error?: { code?: unknown; requestId?: unknown };
+    } | null;
+    if (!upstream.ok || !result?.data?.checkoutUrl) {
+      let message = "Unable to create payment. Retry with the same amount.";
+      const code = result?.error?.code;
+      // Never forward upstream messages, URLs or payloads into the public demo.
+      if (
+        !upstream.ok &&
+        typeof code === "string" &&
+        paymentErrorCodes.has(code)
+      ) {
+        message += ` Diagnostic: ${code}.`;
+        const requestId = result?.error?.requestId;
+        if (
+          typeof requestId === "string" &&
+          requestId.length === 36 &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            requestId,
+          )
+        )
+          message += ` Request ID: ${requestId}.`;
+      }
+      return fail(upstream.status === 429 ? 429 : 503, message);
+    }
     const checkout = new URL(result.data.checkoutUrl);
     if (checkout.origin !== configuredOrigin)
       return fail(
