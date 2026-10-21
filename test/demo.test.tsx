@@ -132,4 +132,34 @@ describe("server-reported demo availability", () => {
     view.unmount();
     expect(signal.aborted).toBe(true);
   });
+
+  it("shows sanitized creation diagnostics without retrying automatically or changing the same-amount retry key", async () => {
+    const message =
+      "Unable to create payment. Retry with the same amount. Diagnostic: RPC_UNAVAILABLE. Request ID: 22222222-2222-4222-8222-222222222222.";
+    vi.mocked(request)
+      .mockResolvedValueOnce({ enabled: true })
+      .mockRejectedValue(new Error(message));
+    render(<App />);
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: /^Pay$/ }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
+    submit();
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(message),
+    );
+    expect(request).toHaveBeenCalledTimes(2);
+    const first = vi.mocked(request).mock.calls[1][1]!;
+    submit();
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(3));
+    expect(vi.mocked(request).mock.calls[2][1]).toMatchObject({
+      headers: first.headers,
+      body: first.body,
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(message),
+    );
+  });
 });

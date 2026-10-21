@@ -13,4 +13,10 @@ The frontend uses pinned Solana web3.js 3.1.0, removing the inherited v1 jayson/
 
 The example is not an authenticated merchant dashboard. Origin checks do not prevent bots from calling a public demo. Configure provider-native abuse controls before activation. In-memory webhook acknowledgment is not a fulfillment ledger.
 
+Payment-creation failures may display a fixed, allowlisted gateway error code and
+a validated UUID v4 request ID for support correlation. The adapter never forwards
+upstream messages, URLs or arbitrary response fields. Unknown/malformed errors
+keep the generic fallback; diagnostics do not prove whether a payment was created
+and do not trigger an automatic retry.
+
 Manual wallet acceptance, hosted environment protections, strict browser security policy for selected origins, webhook raw-body behavior and recovery remain release prerequisites. Checkout capabilities are bearer secrets; exclude them from analytics/logging and keep the no-referrer policy.

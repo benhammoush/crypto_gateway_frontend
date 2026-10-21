@@ -135,6 +135,152 @@ it("creates payments server-side without returning the merchant credential", asy
   expect(result.body).not.toContain("fixture_merchant_credential");
 });
 
+it.each([
+  ["UNAUTHORIZED", 401],
+  ["NOT_CONFIGURED", 503],
+  ["PAYMENTS_DISABLED", 503],
+  ["ORIGIN_REJECTED", 403],
+  ["RATE_LIMITED", 429],
+  ["INVALID_REQUEST", 400],
+  ["INVALID_IDEMPOTENCY_KEY", 400],
+  ["IDEMPOTENCY_CONFLICT", 409],
+  ["PRICE_UNAVAILABLE", 503],
+  ["RPC_UNAVAILABLE", 503],
+  ["WRONG_NETWORK", 503],
+  ["INTERNAL_ERROR", 500],
+])(
+  "reports only the allowlisted %s code and UUID request ID",
+  async (code, status) => {
+    const requestId = "22222222-2222-4222-8222-222222222222";
+    const upstream = vi.fn(async () =>
+      Response.json(
+        {
+          error: {
+            code,
+            requestId,
+            message:
+              "private-provider-message-with-fixture_merchant_credential",
+            url: "https://provider.example/?key=private-provider-key",
+          },
+        },
+        { status },
+      ),
+    );
+    vi.stubGlobal("fetch", upstream);
+    const result = await call("/api/demo/payments", '{"usdCents":100}');
+    expect(result.status).toBe(status === 429 ? 429 : 503);
+    expect(JSON.parse(result.body)).toEqual({
+      error: {
+        code: "DEMO_ERROR",
+        message: `Unable to create payment. Retry with the same amount. Diagnostic: ${code}. Request ID: ${requestId}.`,
+      },
+    });
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(upstream).toHaveBeenCalledOnce();
+  },
+);
+
+it.each([
+  undefined,
+  null,
+  123,
+  {},
+  "private-request-id",
+  "22222222-2222-4222-8222-222222222222\n",
+  "22222222-2222-4222-8222-222222222222?key=private-provider-key",
+])(
+  "omits a malformed request ID %j without losing a safe error code",
+  async (requestId) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            error: { code: "PRICE_UNAVAILABLE", requestId },
+          },
+          { status: 503 },
+        ),
+      ),
+    );
+    const result = await call("/api/demo/payments", '{"usdCents":100}');
+    expect(JSON.parse(result.body).error.message).toBe(
+      "Unable to create payment. Retry with the same amount. Diagnostic: PRICE_UNAVAILABLE.",
+    );
+  },
+);
+
+it.each([
+  null,
+  [],
+  "private-provider-payload",
+  {},
+  { error: null },
+  { error: { code: "private-provider-error" } },
+  { error: { code: { nested: "private-provider-error" } } },
+  { error: { code: "UNAUTHORIZED\nprivate-provider-error" } },
+  {
+    error: {
+      code: "UNKNOWN",
+      requestId: "22222222-2222-4222-8222-222222222222",
+    },
+  },
+])(
+  "keeps the generic fallback for malformed or unrecognized upstream JSON %j",
+  async (body) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json(body, { status: 503 })),
+    );
+    const result = await call("/api/demo/payments", '{"usdCents":100}');
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toEqual({
+      error: {
+        code: "DEMO_ERROR",
+        message: "Unable to create payment. Retry with the same amount.",
+      },
+    });
+  },
+);
+
+it("does not trust error diagnostics inside a successful upstream response", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        error: {
+          code: "UNAUTHORIZED",
+          requestId: "22222222-2222-4222-8222-222222222222",
+        },
+      }),
+    ),
+  );
+  const result = await call("/api/demo/payments", '{"usdCents":100}');
+  expect(JSON.parse(result.body).error.message).toBe(
+    "Unable to create payment. Retry with the same amount.",
+  );
+});
+
+it.each(["non-JSON response", "network exception"])(
+  "does not leak a %s or automatically retry",
+  async (failure) => {
+    const upstream = vi.fn(async () => {
+      if (failure === "network exception")
+        throw new Error("private-network-url-and-credential");
+      return new Response("private-provider-payload", { status: 502 });
+    });
+    vi.stubGlobal("fetch", upstream);
+    const result = await call("/api/demo/payments", '{"usdCents":100}');
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toEqual({
+      error: {
+        code: "DEMO_ERROR",
+        message: "The example service is temporarily unavailable.",
+      },
+    });
+    expect(upstream).toHaveBeenCalledOnce();
+  },
+);
+
 it("rejects cross-origin requests, browser overrides and disabled configuration", async () => {
   expect(
     (
