@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { loadEnv } from "vite";
 import {
   SystemInstruction,
   Transaction,
   VersionedTransaction,
 } from "@solana/web3.js";
+
+const diagnosticsEnabled =
+  loadEnv("development", process.cwd(), "VITE_").VITE_APP_ENV === "dev";
 
 test("wallet failure hints stay dev-only and cannot trigger a second submission", async ({
   page,
@@ -84,7 +88,7 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
   await page.goto(`/checkout/${id}#${"a".repeat(64)}`);
   await page.getByRole("button", { name: "Pay with Phantom" }).click();
   await expect(page.getByRole("status")).toContainText("WALLET_RPC_-32603");
-  if (process.env.VITE_APP_ENV === "dev") {
+  if (diagnosticsEnabled) {
     await expect(page.getByRole("status")).toContainText(
       "Dev wallet hint: BLOCKHASH_EXPIRED_OR_MISSING",
     );
@@ -124,7 +128,7 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
     id,
   );
   expect(stored ?? "").not.toContain(secret);
-  if (process.env.VITE_APP_ENV !== "dev") expect(stored).toBeNull();
+  if (!diagnosticsEnabled) expect(stored).toBeNull();
 });
 
 test("browser wallet flow verifies only after authoritative settlement", async ({
