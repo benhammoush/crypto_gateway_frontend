@@ -46,6 +46,7 @@ afterEach(() => {
   cleanup();
   vi.resetAllMocks();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   sessionStorage.clear();
 });
 
@@ -60,6 +61,114 @@ describe("reference form", () => {
 });
 
 describe("checkout", () => {
+  it("shows dev-only hints and timing after a failure and reload without another submission", async () => {
+    vi.stubEnv("VITE_APP_ENV", "dev");
+    const details = {
+      reason: "BLOCKHASH_EXPIRED_OR_MISSING" as const,
+      walletSeconds: 125,
+      blockhashSeconds: 127,
+      quoteExpired: false,
+    };
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    vi.mocked(sendPayment).mockRejectedValue(
+      new WalletSubmissionUncertain(
+        "Check wallet activity before paying again.",
+        undefined,
+        "WALLET_RPC_-32603",
+        details,
+      ),
+    );
+    const first = render(<Checkout id={payment.id} token="token" />);
+    fireEvent.click(await screen.findByText("Pay with Phantom"));
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Dev wallet hint: BLOCKHASH_EXPIRED_OR_MISSING",
+    );
+    expect(screen.getByRole("status").textContent).toContain(
+      "Wallet wait: 125s. Time since blockhash fetched: 127s.",
+    );
+    expect(screen.getByRole("status").textContent).toContain(
+      "Quote expired at error: no",
+    );
+    expect(
+      JSON.parse(
+        sessionStorage.getItem(
+          `crypto_gateway:signature:${payment.id}:walletFailure`,
+        )!,
+      ),
+    ).toEqual(details);
+    first.unmount();
+    render(<Checkout id={payment.id} token="token" />);
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Dev wallet hint: BLOCKHASH_EXPIRED_OR_MISSING",
+    );
+    fireEvent.click(screen.getByText("Refresh status"));
+    await waitFor(() => expect(paymentStatus).toHaveBeenCalled());
+    expect(screen.queryByText("Pay with Phantom")).toBeNull();
+    expect(sendPayment).toHaveBeenCalledOnce();
+    expect(submitSignature).not.toHaveBeenCalled();
+  });
+  it.each(["local", "production"])(
+    "does not collect or display extra wallet details in %s",
+    async (environment) => {
+      vi.stubEnv("VITE_APP_ENV", environment);
+      const details = {
+        reason: "INSUFFICIENT_FUNDS" as const,
+        walletSeconds: 1,
+        blockhashSeconds: 2,
+        quoteExpired: false,
+      };
+      vi.mocked(paymentStatus).mockResolvedValue(payment);
+      vi.mocked(sendPayment).mockRejectedValue(
+        new WalletSubmissionUncertain(
+          "Check wallet activity before paying again.",
+          undefined,
+          "WALLET_RPC_-32603",
+          details,
+        ),
+      );
+      const first = render(<Checkout id={payment.id} token="token" />);
+      fireEvent.click(await screen.findByText("Pay with Phantom"));
+      await screen.findByRole("status");
+      expect(screen.queryByText(/Dev wallet hint/)).toBeNull();
+      expect(
+        sessionStorage.getItem(
+          `crypto_gateway:signature:${payment.id}:walletFailure`,
+        ),
+      ).toBeNull();
+      first.unmount();
+      sessionStorage.setItem(
+        `crypto_gateway:signature:${payment.id}:walletFailure`,
+        JSON.stringify(details),
+      );
+      render(<Checkout id={payment.id} token="token" />);
+      await screen.findByRole("status");
+      expect(screen.queryByText(/Dev wallet hint/)).toBeNull();
+      expect(screen.queryByText("Pay with Phantom")).toBeNull();
+      expect(sendPayment).toHaveBeenCalledOnce();
+    },
+  );
+  it("does not render malformed stored dev details or release the uncertainty guard", async () => {
+    vi.stubEnv("VITE_APP_ENV", "dev");
+    const key = `crypto_gateway:signature:${payment.id}`;
+    sessionStorage.setItem(`${key}:uncertain`, "true");
+    sessionStorage.setItem(
+      `${key}:walletFailure`,
+      JSON.stringify({
+        reason: "secret-provider-payload",
+        walletSeconds: "secret",
+        blockhashSeconds: 2,
+        quoteExpired: false,
+      }),
+    );
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    render(<Checkout id={payment.id} token="token" />);
+    await screen.findByRole("status");
+    expect(screen.queryByText(/secret-provider-payload/)).toBeNull();
+    expect(screen.queryByText(/Dev wallet hint/)).toBeNull();
+    expect(screen.queryByText("Pay with Phantom")).toBeNull();
+    expect(sessionStorage.getItem(`${key}:uncertain`)).toBe("true");
+    expect(sendPayment).not.toHaveBeenCalled();
+  });
   it("blocks a second transfer after uncertain wallet submission", async () => {
     vi.mocked(paymentStatus).mockResolvedValue(payment);
     vi.mocked(sendPayment).mockRejectedValue(
@@ -200,6 +309,7 @@ describe("checkout", () => {
     const key = `crypto_gateway:signature:${payment.id}`;
     sessionStorage.setItem(`${key}:uncertain`, "true");
     sessionStorage.setItem(`${key}:walletDiagnostic`, "WALLET_RPC_-32603");
+    sessionStorage.setItem(`${key}:walletFailure`, "{}");
     vi.mocked(paymentStatus).mockResolvedValue({
       ...payment,
       status: "settled",
@@ -216,6 +326,7 @@ describe("checkout", () => {
     ).toBe("step");
     expect(screen.queryByRole("status")).toBeNull();
     expect(sessionStorage.getItem(`${key}:walletDiagnostic`)).toBeNull();
+    expect(sessionStorage.getItem(`${key}:walletFailure`)).toBeNull();
     expect(sessionStorage.getItem(`${key}:uncertain`)).toBeNull();
   });
   it("resubmits a saved signature after refresh without prompting another transfer", async () => {

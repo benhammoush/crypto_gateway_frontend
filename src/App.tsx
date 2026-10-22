@@ -4,6 +4,7 @@ import { Payment, PROGRESS, Progress } from "./types";
 import {
   sendPayment,
   walletDiagnostic,
+  walletFailureDetails,
   WalletNotSubmitted,
   WalletSubmissionUncertain,
 } from "./wallet";
@@ -152,6 +153,11 @@ export function Checkout({ id, token }: { id: string; token: string }) {
   const [diagnostic, setDiagnostic] = useState(() =>
     walletDiagnostic(readSession(`${savedKey}:walletDiagnostic`)),
   );
+  const [walletFailure, setWalletFailure] = useState(() =>
+    import.meta.env.VITE_APP_ENV === "dev"
+      ? walletFailureDetails(readSession(`${savedKey}:walletFailure`))
+      : undefined,
+  );
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -174,6 +180,7 @@ export function Checkout({ id, token }: { id: string; token: string }) {
           removeSession(savedKey);
           removeSession(`${savedKey}:uncertain`);
           removeSession(`${savedKey}:walletDiagnostic`);
+          removeSession(`${savedKey}:walletFailure`);
           return;
         }
         const signature = candidate.current;
@@ -263,6 +270,12 @@ export function Checkout({ id, token }: { id: string; token: string }) {
         const code = walletDiagnostic(error.diagnosticCode);
         setDiagnostic(code);
         if (code) saveSession(`${savedKey}:walletDiagnostic`, code);
+        if (import.meta.env.VITE_APP_ENV === "dev") {
+          const details = walletFailureDetails(error.details);
+          setWalletFailure(details);
+          if (details)
+            saveSession(`${savedKey}:walletFailure`, JSON.stringify(details));
+        }
       }
       if (error instanceof WalletNotSubmitted) {
         removeSession(`${savedKey}:uncertain`);
@@ -369,6 +382,19 @@ export function Checkout({ id, token }: { id: string; token: string }) {
             ? "available"
             : "unavailable"}
           .
+          {import.meta.env.VITE_APP_ENV === "dev" && walletFailure && (
+            <>
+              <br />
+              Dev wallet hint: <code>{walletFailure.reason}</code>.
+              <br />
+              Wallet wait: {walletFailure.walletSeconds}s. Time since blockhash
+              fetched: {walletFailure.blockhashSeconds}s.
+              <br />
+              Quote expired at error:{" "}
+              {walletFailure.quoteExpired ? "yes" : "no"}. These details do not
+              prove submission or the cause.
+            </>
+          )}
         </p>
       )}
       {!busy && progress !== "Payment verified" && (

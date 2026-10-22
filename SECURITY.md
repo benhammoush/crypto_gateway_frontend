@@ -20,3 +20,5 @@ keep the generic fallback; diagnostics do not prove whether a payment was create
 and do not trigger an automatic retry.
 
 Manual wallet acceptance, hosted environment protections, strict browser security policy for selected origins, webhook raw-body behavior and recovery remain release prerequisites. Checkout capabilities are bearer secrets; exclude them from analytics/logging and keep the no-referrer policy.
+
+Only `VITE_APP_ENV=dev` collects and displays additional wallet-failure hints. Fixed categories are inferred from bounded top-level or `data.message` text; raw messages, provider payloads and URLs are never displayed, logged or saved to tab storage. Rounded timing measures wallet wait and time since the blockhash response, not the blockhash's actual chain age or validity. Hints, timing and quote-expiry state do not prove submission or identify the cause conclusively. Stored details are validated and rebuilt from fixed fields; local and production do not collect or render them. No fallback submission or automatic wallet retry is added, and uncertain-submission guards remain in force.

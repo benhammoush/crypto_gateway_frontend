@@ -11,6 +11,7 @@ import {
   WalletNotSubmitted,
   WalletSubmissionUncertain,
   walletDiagnostic,
+  walletFailureDetails,
 } from "../src/wallet";
 import type { Payment } from "../src/types";
 
@@ -53,6 +54,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 it.each(["100000000", "9007199254740993"])(
@@ -282,4 +284,173 @@ it("does not submit if payment expires during wallet connection", async () => {
   };
   await expect(sendPayment(expiring, token)).rejects.toThrow("expired before");
   expect(send).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["Blockhash not found", "BLOCKHASH_EXPIRED_OR_MISSING"],
+  [
+    "Transaction expired: block height exceeded",
+    "BLOCKHASH_EXPIRED_OR_MISSING",
+  ],
+  ["insufficient funds for rent", "INSUFFICIENT_FUNDS"],
+  ["Not enough SOL", "INSUFFICIENT_FUNDS"],
+  ["Transaction simulation failed", "SIMULATION_FAILED"],
+  ["Failed to deserialize transaction", "TRANSACTION_ENCODING_FAILED"],
+  ["network error", "NETWORK_OR_TIMEOUT"],
+  ["Unexpected error", "UNKNOWN"],
+])(
+  "classifies dev wallet hint %s without exposing its message",
+  async (message, reason) => {
+    vi.stubEnv("VITE_APP_ENV", "dev");
+    const secret = "secret-must-not-leak";
+    const request = vi.fn();
+    const send = vi.fn().mockRejectedValue({
+      code: -32603,
+      message: `${message}: https://rpc.example.org/?api-key=${secret}`,
+      data: { token },
+    });
+    window.phantom = {
+      solana: {
+        isPhantom: true,
+        connect: async () => ({ publicKey: payer }),
+        signAndSendTransaction: send,
+        request,
+      },
+    };
+    const error = await sendPayment(payment, token).catch(
+      (error: unknown) => error,
+    );
+    expect(error).toBeInstanceOf(WalletSubmissionUncertain);
+    expect(error).toMatchObject({
+      diagnosticCode: "WALLET_RPC_-32603",
+      details: { reason, quoteExpired: false },
+    });
+    expect(JSON.stringify(error)).not.toContain(secret);
+    expect(JSON.stringify(error)).not.toContain(token);
+    expect(JSON.stringify(error)).not.toContain("https://");
+    expect(send).toHaveBeenCalledOnce();
+    expect(request).not.toHaveBeenCalled();
+  },
+);
+
+it("uses nested message hints and records elapsed time without proving blockhash expiry", async () => {
+  vi.stubEnv("VITE_APP_ENV", "dev");
+  vi.spyOn(performance, "now")
+    .mockReturnValueOnce(1000)
+    .mockReturnValueOnce(3500)
+    .mockReturnValue(128500);
+  const send = vi.fn(async () => {
+    vi.spyOn(Date, "now").mockReturnValue(payment.expiresAt + 1);
+    throw {
+      code: -32603,
+      message: "Internal error",
+      data: { message: "Blockhash not found" },
+    };
+  });
+  window.phantom = {
+    solana: {
+      isPhantom: true,
+      connect: async () => ({ publicKey: payer }),
+      signAndSendTransaction: send,
+    },
+  };
+  await expect(sendPayment(payment, token)).rejects.toMatchObject({
+    details: {
+      reason: "BLOCKHASH_EXPIRED_OR_MISSING",
+      walletSeconds: 125,
+      blockhashSeconds: 127,
+      quoteExpired: true,
+    },
+  });
+  expect(send).toHaveBeenCalledOnce();
+});
+
+it.each(["production", "local", "", undefined])(
+  "does not inspect error messages or collect details in %s",
+  async (environment) => {
+    vi.stubEnv("VITE_APP_ENV", environment);
+    const message = vi.fn(() => "secret provider message");
+    const failure = {
+      code: -32603,
+      get message() {
+        return message();
+      },
+    };
+    window.phantom = {
+      solana: {
+        isPhantom: true,
+        connect: async () => ({ publicKey: payer }),
+        signAndSendTransaction: vi.fn().mockRejectedValue(failure),
+      },
+    };
+    await expect(sendPayment(payment, token)).rejects.toHaveProperty(
+      "details",
+      undefined,
+    );
+    expect(message).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps unexpected message access failures uncertain and never retries", async () => {
+  vi.stubEnv("VITE_APP_ENV", "dev");
+  const send = vi.fn().mockRejectedValue({
+    code: -32603,
+    get message() {
+      throw new Error("secret");
+    },
+  });
+  window.phantom = {
+    solana: {
+      isPhantom: true,
+      connect: async () => ({ publicKey: payer }),
+      signAndSendTransaction: send,
+    },
+  };
+  await expect(sendPayment(payment, token)).rejects.toMatchObject({
+    details: { reason: "UNKNOWN" },
+  });
+  expect(send).toHaveBeenCalledOnce();
+});
+
+it("classifies an invalid dev wallet response without treating it as not submitted", async () => {
+  vi.stubEnv("VITE_APP_ENV", "dev");
+  window.phantom = {
+    solana: {
+      isPhantom: true,
+      connect: async () => ({ publicKey: payer }),
+      signAndSendTransaction: async () => ({ signature: "" }),
+    },
+  };
+  await expect(sendPayment(payment, token)).rejects.toMatchObject({
+    diagnosticCode: "WALLET_RESPONSE_INVALID",
+    details: { reason: "INVALID_WALLET_RESPONSE" },
+  });
+});
+
+const details = {
+  reason: "UNKNOWN",
+  walletSeconds: 3,
+  blockhashSeconds: 4,
+  quoteExpired: false,
+};
+
+it("rebuilds dev details from fixed fields only", () => {
+  expect(
+    walletFailureDetails(JSON.stringify({ ...details, rawMessage: "secret" })),
+  ).toEqual(details);
+});
+
+it.each([
+  null,
+  "not json",
+  { ...details, reason: "UNKNOWN secret" },
+  { ...details, walletSeconds: "3" },
+  { ...details, walletSeconds: -1 },
+  { ...details, walletSeconds: 1.5 },
+  { ...details, walletSeconds: Infinity },
+  { ...details, blockhashSeconds: 2 },
+  { ...details, blockhashSeconds: 86_401 },
+  { ...details, quoteExpired: "false" },
+])("rejects untrusted stored wallet details %j", (value) => {
+  expect(walletFailureDetails(value)).toBeUndefined();
 });

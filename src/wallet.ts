@@ -49,11 +49,118 @@ export function walletDiagnostic(value: unknown): WalletDiagnostic | undefined {
   return WALLET_DIAGNOSTICS.find((code) => code === value);
 }
 
+const WALLET_FAILURE_REASONS = [
+  "BLOCKHASH_EXPIRED_OR_MISSING",
+  "INSUFFICIENT_FUNDS",
+  "SIMULATION_FAILED",
+  "TRANSACTION_ENCODING_FAILED",
+  "NETWORK_OR_TIMEOUT",
+  "INVALID_WALLET_RESPONSE",
+  "UNKNOWN",
+] as const;
+
+interface WalletFailureDetails {
+  reason: (typeof WALLET_FAILURE_REASONS)[number];
+  walletSeconds: number;
+  blockhashSeconds: number;
+  quoteExpired: boolean;
+}
+
+/** Rebuild only fixed fields, including when restoring untrusted tab storage. */
+export function walletFailureDetails(
+  value: unknown,
+): WalletFailureDetails | undefined {
+  try {
+    const parsed: unknown =
+      typeof value === "string" ? JSON.parse(value) : value;
+    if (!parsed || typeof parsed !== "object") return;
+    const details = parsed as Record<string, unknown>;
+    const reason = WALLET_FAILURE_REASONS.find(
+      (item) => item === details.reason,
+    );
+    if (
+      !reason ||
+      typeof details.walletSeconds !== "number" ||
+      !Number.isInteger(details.walletSeconds) ||
+      details.walletSeconds < 0 ||
+      details.walletSeconds > 86_400 ||
+      typeof details.blockhashSeconds !== "number" ||
+      !Number.isInteger(details.blockhashSeconds) ||
+      details.blockhashSeconds < details.walletSeconds ||
+      details.blockhashSeconds > 86_400 ||
+      typeof details.quoteExpired !== "boolean"
+    )
+      return;
+    return {
+      reason,
+      walletSeconds: details.walletSeconds,
+      blockhashSeconds: details.blockhashSeconds,
+      quoteExpired: details.quoteExpired,
+    };
+  } catch {
+    return;
+  }
+}
+
+/** Message text is inspected locally for hints, never retained or displayed. */
+function walletFailureReason(error: unknown): WalletFailureDetails["reason"] {
+  if (
+    error instanceof WalletSubmissionUncertain &&
+    error.diagnosticCode === "WALLET_RESPONSE_INVALID"
+  )
+    return "INVALID_WALLET_RESPONSE";
+  try {
+    if (!error || typeof error !== "object") return "UNKNOWN";
+    const messages: string[] = [];
+    if ("message" in error && typeof error.message === "string")
+      messages.push(error.message.slice(0, 1024));
+    if (
+      "data" in error &&
+      error.data &&
+      typeof error.data === "object" &&
+      "message" in error.data &&
+      typeof error.data.message === "string"
+    )
+      messages.push(error.data.message.slice(0, 1024));
+    const text = messages.join(" ");
+    if (
+      /blockhash (?:not found|expired)|block height exceeded|transaction expired/i.test(
+        text,
+      )
+    )
+      return "BLOCKHASH_EXPIRED_OR_MISSING";
+    if (
+      /insufficient (?:funds|lamports|balance)|not enough (?:sol|funds|lamports)/i.test(
+        text,
+      )
+    )
+      return "INSUFFICIENT_FUNDS";
+    if (/simulation failed|transaction simulation/i.test(text))
+      return "SIMULATION_FAILED";
+    if (
+      /serializ|deserializ|invalid transaction|malformed transaction/i.test(
+        text,
+      )
+    )
+      return "TRANSACTION_ENCODING_FAILED";
+    if (
+      /disconnected|network error|failed to fetch|fetch failed|timed out|timeout/i.test(
+        text,
+      )
+    )
+      return "NETWORK_OR_TIMEOUT";
+  } catch {
+    // Diagnostics must never replace the uncertain-submission guard with an error.
+  }
+  return "UNKNOWN";
+}
+
 export class WalletSubmissionUncertain extends Error {
   constructor(
     message: string,
     options?: ErrorOptions,
     readonly diagnosticCode: WalletDiagnostic = "WALLET_REQUEST_FAILED",
+    readonly details?: WalletFailureDetails,
   ) {
     super(message, options);
   }
@@ -67,6 +174,7 @@ export async function sendPayment(
 ): Promise<string> {
   const wallet = window.phantom?.solana;
   let walletTransaction: VersionedTransaction;
+  let blockhashFetchedAt: number;
   try {
     if (!wallet?.isPhantom)
       throw new Error("Install or open Phantom to pay with Devnet SOL.");
@@ -108,6 +216,7 @@ export async function sendPayment(
     const connected = await wallet.connect();
     const publicKey = new PublicKey(connected.publicKey.toBase58());
     const latest = await connection.getLatestBlockhash("finalized");
+    blockhashFetchedAt = performance.now();
     if (Date.now() >= payment.expiresAt)
       throw new Error("Payment expired before submission.");
     const transaction = new Transaction({
@@ -138,6 +247,7 @@ export async function sendPayment(
       { cause: error },
     );
   }
+  const walletStartedAt = performance.now();
   try {
     const result = await wallet!.signAndSendTransaction(walletTransaction);
     if (
@@ -163,6 +273,18 @@ export async function sendPayment(
         { cause: error },
       );
     }
+    const stoppedAt = performance.now();
+    const details =
+      import.meta.env.VITE_APP_ENV === "dev"
+        ? walletFailureDetails({
+            reason: walletFailureReason(error),
+            walletSeconds: Math.floor((stoppedAt - walletStartedAt) / 1000),
+            blockhashSeconds: Math.floor(
+              (stoppedAt - blockhashFetchedAt) / 1000,
+            ),
+            quoteExpired: Date.now() >= payment.expiresAt,
+          })
+        : undefined;
     throw new WalletSubmissionUncertain(
       "Wallet submission could not be confirmed. Check wallet activity and contact the merchant before paying again.",
       { cause: error },
@@ -174,6 +296,7 @@ export async function sendPayment(
             typeof error.code === "number"
           ? walletDiagnostic(`WALLET_RPC_${error.code}`)
           : undefined,
+      details,
     );
   }
 }
