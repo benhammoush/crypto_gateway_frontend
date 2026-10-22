@@ -1,9 +1,135 @@
 import { expect, test } from "@playwright/test";
+import { loadEnv } from "vite";
 import {
   SystemInstruction,
   Transaction,
   VersionedTransaction,
 } from "@solana/web3.js";
+
+const diagnosticsEnabled =
+  loadEnv("development", process.cwd(), "VITE_").VITE_APP_ENV === "dev";
+
+test("wallet failure hints stay dev-only and cannot trigger a second submission", async ({
+  page,
+}) => {
+  const id = "33333333-3333-4333-8333-333333333333";
+  const secret = "fixture-secret-must-not-render";
+  const headers = {
+    "access-control-allow-origin": test.info().project.use.baseURL!,
+    "access-control-allow-headers":
+      "authorization, content-type, solana-client",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+  };
+  await page.addInitScript((secret) => {
+    Object.assign(window, {
+      fixtureSendCount: 0,
+      phantom: {
+        solana: {
+          isPhantom: true,
+          connect: async () => ({
+            publicKey: { toBase58: () => "1".repeat(32) },
+          }),
+          signAndSendTransaction: async () => {
+            const state = window as unknown as { fixtureSendCount: number };
+            state.fixtureSendCount++;
+            throw {
+              code: -32603,
+              message: `Blockhash not found; https://rpc.invalid/?api-key=${secret}`,
+            };
+          },
+        },
+      },
+    });
+  }, secret);
+  await page.route("**/v1/checkout/**", async (route) => {
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({ headers, body: "" });
+    } else if (route.request().url().endsWith("/rpc")) {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        headers,
+        json: {
+          jsonrpc: "2.0",
+          id: body.id,
+          result:
+            body.method === "getGenesisHash"
+              ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+              : {
+                  context: { slot: 1 },
+                  value: {
+                    blockhash: "1".repeat(32),
+                    lastValidBlockHeight: 100,
+                  },
+                },
+        },
+      });
+    } else {
+      expect(route.request().method()).toBe("GET");
+      await route.fulfill({
+        headers,
+        json: {
+          data: {
+            id,
+            usdCents: 1,
+            displaySol: "0.000095794",
+            lamports: "95794",
+            status: "pending",
+            recipient: "So11111111111111111111111111111111111111112",
+            expiresAt: Date.now() + 900_000,
+            memo: `crypto_gateway:${id}`,
+            network: "solana-devnet",
+            attempts: [],
+            signature: null,
+          },
+        },
+      });
+    }
+  });
+  await page.goto(`/checkout/${id}#${"a".repeat(64)}`);
+  await page.getByRole("button", { name: "Pay with Phantom" }).click();
+  await expect(page.getByRole("status")).toContainText("WALLET_RPC_-32603");
+  if (diagnosticsEnabled) {
+    await expect(page.getByRole("status")).toContainText(
+      "Dev wallet hint: BLOCKHASH_EXPIRED_OR_MISSING",
+    );
+    await expect(page.getByRole("status")).toContainText(
+      "Time since blockhash fetched:",
+    );
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await expect(page.getByRole("status")).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath("dev-wallet-diagnostic.png"),
+      fullPage: true,
+    });
+  } else {
+    await expect(
+      page.getByText("Dev wallet hint:", { exact: false }),
+    ).toHaveCount(0);
+  }
+  await expect(page.getByText(secret, { exact: false })).toHaveCount(0);
+  await page.getByRole("button", { name: "Refresh status" }).click();
+  await expect(
+    page.getByRole("button", { name: "Pay with Phantom" }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { fixtureSendCount: number }).fixtureSendCount,
+    ),
+  ).toBe(1);
+  const stored = await page.evaluate(
+    (id) =>
+      sessionStorage.getItem(`crypto_gateway:signature:${id}:walletFailure`),
+    id,
+  );
+  expect(stored ?? "").not.toContain(secret);
+  if (!diagnosticsEnabled) expect(stored).toBeNull();
+});
 
 test("browser wallet flow verifies only after authoritative settlement", async ({
   page,
