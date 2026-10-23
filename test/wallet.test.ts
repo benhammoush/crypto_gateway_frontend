@@ -208,7 +208,9 @@ it("authenticates only to the configured gateway, ignoring provider URL data", a
   vi.mocked(Connection.prototype.getLatestBlockhash).mockRestore();
   const methods: string[] = [];
   const fetchMock = vi.fn(async (url, init: RequestInit) => {
-    expect(String(url)).toBe("http://localhost:8787/v1/checkout/fixture/rpc");
+    expect(String(url)).toBe(
+      `${import.meta.env.VITE_API_ORIGIN ?? "http://localhost:8787"}/v1/checkout/fixture/rpc`,
+    );
     expect(new Headers(init.headers).get("authorization")).toBe(
       `Bearer ${token}`,
     );

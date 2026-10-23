@@ -1,5 +1,26 @@
 # Frontend delivery
 
+## Versioned CI/CD entry points
+
+The [shared contract](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md)
+is pinned in `.github/ci-cd.json`. `ci.yml` checks PRs/main and delivers successful
+exact main commits to enabled dev. Manual `deploy-production.yml` selects a full
+merged `sha`, requires retained successful dev evidence, verifies the candidate,
+then waits for native approval. CI dispatch is the exact-SHA dev recovery path.
+These supersede older combined target-selector invocations, not existing
+provenance, isolation, payment no-retry or recovery/acceptance safeguards.
+
+All Ubuntu jobs use `ubuntu-24.04`. Browser tests exercise built output in Chromium,
+Firefox and WebKit. Offline packaging preserves all merchant-demo functions and
+their native Node handler, not just static assets. Packaged imports/status are
+checked with payments disabled and upstream fetches forbidden. Prebuilt delivery
+does not rebuild or expose runtime secrets; helpers stay disabled to preserve raw
+request streams. Smoke checks identity and the public status hint, never payment
+creation/submission. Missing production configuration remains a setup blocker.
+No enablement, credential, compatibility pin, resource or payment state changes
+are part of this migration. Historical sources lacking versioned hooks fail
+closed; immutable artifact recovery remains separately authorized.
+
 Local → dev → production, no staging. Independent frontend projects/aliases, server-only example credentials, API origins and deployment credentials per hosted environment. Production is Devnet-only. CI includes disabled-by-default delivery jobs; this local source change does not provision resources, configure secrets or establish hosted acceptance.
 
 Vercel functions in `api/demo` reuse the server-only merchant adapter. Configure `DEMO_ENABLED`, `DEMO_FRONTEND_ORIGIN`, `GATEWAY_ORIGIN`, `DEMO_MERCHANT_API_KEY` and optional `DEMO_WEBHOOK_SECRET` as server runtime values. Never expose them through VITE. The example receiver verifies raw-body HMAC/timestamps but its deduplication is in memory and demonstrates acknowledgment only; real fulfillment needs durable event deduplication.
