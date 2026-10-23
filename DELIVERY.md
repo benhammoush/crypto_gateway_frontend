@@ -4,6 +4,22 @@
 
 Automation 2.0 removes dev opt-ins when this adoption is merged to main.
 
+### Read-only failed-delivery diagnosis
+
+After merge and separate execution authorization, `diagnose-dev-delivery.yml`
+reads one recorded dev deployment from main using its exact `deployment_id` and
+full source `sha`. It uses the existing dev-scoped `VERCEL_TOKEN` for two fixed
+provider metadata GETs, then checks the provider-bound deployment URL and fixed
+stable dev origin without application credentials or redirect following. Responses
+are bounded; summaries contain only selected identities, booleans and HTTP status
+codes, never response bodies, tokens or redirect locations. Protection-config
+presence alone does not prove a URL requires authentication; inspect its HTTP
+result. Source/artifact matches are not full configuration or user acceptance.
+The manual job shares the dev mutation lock but performs no mutations, retries,
+deployments, payment requests or configuration changes. It neither requires nor
+validates `SMOKE_BYPASS`. Merging this source still triggers ordinary main CI/dev
+delivery; running the diagnostic is a separate read-only operation.
+
 The [shared contract](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md)
 is pinned in `.github/ci-cd.json`. `ci.yml` checks PRs/main and delivers successful
 exact main commits to dev without a deployment-enable switch. Manual `deploy-production.yml` selects a full
