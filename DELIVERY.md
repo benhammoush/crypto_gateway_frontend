@@ -2,7 +2,9 @@
 
 ## Versioned CI/CD entry points
 
-Automation 2.0 removes dev opt-ins when this adoption is merged to main.
+Automation 3.0 removes production deployment opt-ins; dev remains automatic.
+The verified immutable v3.0.0 release is pinned below. Delete obsolete live
+deployment flags only after this consumer adoption is merged and verified.
 
 ### Read-only failed-delivery diagnosis
 
@@ -33,13 +35,13 @@ Firefox and WebKit. Offline packaging preserves all merchant-demo functions and
 their native Node handler, not just static assets. Packaged imports/status are
 checked with payments disabled and upstream fetches forbidden. Prebuilt delivery
 does not rebuild or expose runtime secrets; helpers stay disabled to preserve raw
-request streams. Smoke checks identity and the public status hint, never payment
+request streams. Post-deployment verification checks identity and the public status hint, never payment
 creation/submission. Missing production configuration remains a setup blocker.
-No enablement, credential, compatibility pin, resource or payment state changes
+No remote-setting, credential, compatibility pin, resource or payment state changes
 are part of this migration. Historical sources lacking versioned hooks fail
 closed; immutable artifact recovery remains separately authorized.
 
-Local → dev → production, no staging. Independent frontend projects/aliases, server-only example credentials, API origins and deployment credentials per hosted environment. Production is Devnet-only. Successful main verification automatically starts dev delivery; production remains opt-in. This local source change does not provision resources, configure secrets or establish hosted acceptance.
+Local → dev → production, no staging. Independent frontend projects/aliases, server-only example credentials, API origins and deployment credentials per hosted environment. Production is Devnet-only. Successful main verification automatically starts dev delivery; production requires manual dispatch and native approval, not a boolean enable flag. This local source change does not provision resources, configure secrets or establish hosted acceptance.
 
 Vercel functions in `api/demo` reuse the server-only merchant adapter. Configure `DEMO_ENABLED`, `DEMO_FRONTEND_ORIGIN`, `GATEWAY_ORIGIN`, `DEMO_MERCHANT_API_KEY` and optional `DEMO_WEBHOOK_SECRET` as server runtime values. Never expose them through VITE. The example receiver verifies raw-body HMAC/timestamps but its deduplication is in memory and demonstrates acknowledgment only; real fulfillment needs durable event deduplication.
 
@@ -64,7 +66,7 @@ Protect main with strict required `quality`/`browser` (GitHub Actions) and `Code
 
 Select an explicit compatible backend SHA and generated schema hash. Deploy backward-compatible backend first, then frontend. Record exact frontend/backend source revisions, versions, CI results, provider identities, migrations and any prior recoverable pair. First production uses the approved no-predecessor exception below. No cross-repository coordinator or latest-main fallback. Serialize target operations, preserve exact accepted source/lockfile identity, and repeat affected acceptance after dev drift.
 
-Before production: manual localhost acceptance, live controlled dev wallet/verification/webhook acceptance, dependency advisory review, environment readback, monitoring and rollback/isolated restore rehearsal. Production smoke checks are read-only. Restore recorded compatible artifacts, never reverse payment data automatically.
+Before production: manual localhost acceptance, live controlled dev wallet/verification/webhook acceptance, dependency advisory review, environment readback, monitoring and rollback/isolated restore rehearsal. Production post-deployment verification is read-only. Restore recorded compatible artifacts, never reverse payment data automatically.
 
 ## Shared manually approved production flow
 
@@ -72,14 +74,14 @@ Before production: manual localhost acceptance, live controlled dev wallet/verif
 
 The owner assigns a bounded task and authorizes its endpoint; no backlog pickup is automatic. The assistant owns implementation, affected checks, authorized PR publication and valid CI/review repairs, including resuming a paused CodeRabbit review. `.coderabbit.yaml` enables real approval after review and prevents author-triggered approval/resolve overrides. The owner decides when to merge after current-head checks and approval pass. No automatic merger, merge PAT or separate orchestration service is required.
 
-An authorized human merge triggers the main-push dev pipeline and hosted smoke after successful verification, without a deployment-enable flag. Verify exact source/provider identities and affected dev behavior, not just PR CI. Private-dev access and provisioning retain their separate prerequisites; this workflow grants no new credentials. Production uses the exact accepted dev source pair, manual dispatch and native approval as described below.
+An authorized human merge triggers the main-push dev pipeline and hosted post-deployment verification after successful verification, without a deployment-enable flag. Verify exact source/provider identities and affected dev behavior, not just PR CI. Private-dev access and provisioning retain their separate prerequisites; this workflow grants no new credentials. Production uses the exact accepted dev source pair, manual dispatch and native approval as described below.
 
 - Merge → existing quality/browser checks on the exact merged source → isolated dev.
   Manual dev redeployment and production dispatch run from main with an exact full
   `sha`. Source ancestry is checked before candidate code executes. Manual source
   selection never silently substitutes latest main. Deployment serializes per target;
   superseded automatic dev runs fail before mutation. Active operations are not cancelled.
-- Production has `DEPLOY_ENABLED` (unset/false until authorized); dev ignores it. Each environment has
+- Neither target uses a deployment-enable flag. Hold production by not dispatching it until authorized. Each environment has
   `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `OTHER_VERCEL_PROJECT_ID`, `TARGET_ORIGIN`
   and `VITE_API_ORIGIN` variables, plus its own project-scoped `VERCEL_TOKEN` secret.
   Password-manager label: `crypto-gateway-production-vercel-deploy` (or dev).
@@ -103,7 +105,7 @@ An authorized human merge triggers the main-push dev pipeline and hosted smoke a
   backend first. Native approval permits self-review, disables admin bypass, and
   restricts execution to main. No custom approval checkbox substitutes for it.
 - Production reruns require a new dispatch and approval after diagnosis. The workflow
-  does not query dev or prove acceptance. Post-deployment HTTP smoke is read-only and
+  does not query dev or prove acceptance. Post-deployment HTTP verification is read-only and
   not live payment acceptance. An interrupted deployment may already have changed one
   provider; inspect both before retrying. First production follows the approved
   no-predecessor policy below rather than fabricating recovery evidence.
@@ -136,7 +138,7 @@ payment/failure acceptance and rehearse dev application rollback. Restore and
 revalidate that candidate pair afterward; database recovery rehearsals use only
 an isolated non-production copy. Explicitly accept and record that no previous
 accepted production pair exists to restore. An initial resource/version or a
-successful smoke check is not an accepted rollback baseline.
+successful post-deployment verification is not an accepted rollback baseline.
 
 On failure or uncertain mutation, stop and inspect both providers, D1/schema state
 and payment/webhook/Cron effects. Recover only through fresh, separately authorized
@@ -158,7 +160,7 @@ remain owner checks before native approval. The backend runbook's
 [matching policy](https://github.com/benhammoush/crypto_gateway_backend/blob/main/DELIVERY.md#approved-first-production-policy)
 also applies to the pair; each repository retains its own dispatch and approval.
 
-Production `DEPLOY_ENABLED`, native approval, isolation and schema/provenance
+Production manual dispatch, native approval, isolation and schema/provenance
 guards remain mandatory. This policy does not authorize publication, activation,
 provisioning, migrations, deployment, payment execution or data mutation.
 Production remains Devnet-only.

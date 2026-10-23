@@ -32,10 +32,10 @@ jobs:
   # ci:verify-artifact probes emitted imports/status with upstream calls forbidden.
   # Server-only merchant/RPC credentials are never VITE build inputs.
   verify:
-    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-web.yml@d7d0c297f0b4038e9815349fd16f79bb92d77ceb
+    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-web.yml@a35aea526ca8b69d7ec27ff7952cff6af8c1bbe5
     with:
       # Shared: reusable workflow and implementation checkout use one immutable pin.
-      automation_sha: d7d0c297f0b4038e9815349fd16f79bb92d77ceb
+      automation_sha: a35aea526ca8b69d7ec27ff7952cff6af8c1bbe5
       # Shared: manual SHA or exact PR/main event revision, never implicit latest main.
       source_sha: ${{ inputs.sha || github.sha }}
       environment: dev
@@ -43,16 +43,16 @@ jobs:
       node_version: "24"
   # Shared: only successful main push/manual dev checks can enter delivery.
   # The called job binds dev, checks artifact integrity/freshness without an opt-in and
-  # serializes the target, retaining immutable deployment and smoke evidence.
+  # serializes the target, retaining immutable deployment and post-deployment verification evidence.
   # Project: scripts/ci-deploy.mjs checks backend compatibility/build-input drift,
   # then uploads the prebuilt SPA/functions and reads the public demo status hint.
-  # Smoke never creates/submits a payment; backend-first acceptance is still manual.
+  # Post-deployment verification never creates/submits a payment; backend-first acceptance is still manual.
   deploy_dev:
     needs: verify
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    uses: benhammoush/ci-cd-workflows/.github/workflows/deploy-web.yml@d7d0c297f0b4038e9815349fd16f79bb92d77ceb
+    uses: benhammoush/ci-cd-workflows/.github/workflows/deploy-web.yml@a35aea526ca8b69d7ec27ff7952cff6af8c1bbe5
     with:
-      automation_sha: d7d0c297f0b4038e9815349fd16f79bb92d77ceb
+      automation_sha: a35aea526ca8b69d7ec27ff7952cff6af8c1bbe5
       source_sha: ${{ inputs.sha || github.sha }}
       environment: dev
       node_version: "24"

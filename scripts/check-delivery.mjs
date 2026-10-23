@@ -10,13 +10,11 @@ import { pathToFileURL } from "node:url";
 import { format } from "prettier";
 
 /**
- * Reject disabled, non-main, unpinned or non-isolated deployment configuration.
+ * Reject non-main, unpinned or non-isolated deployment configuration.
  * @param env - Selected GitHub environment configuration; never printed.
  * @param contract - Selected candidate's backend contract provenance.
  */
 export function checkDelivery(env, contract) {
-  if (env.DELIVERY_TARGET === "production")
-    assert.equal(env.DEPLOY_ENABLED, "true", "Deployment remains disabled.");
   assert.equal(env.GITHUB_REF, "refs/heads/main");
   assert.match(env.SOURCE_SHA ?? "", /^[a-f0-9]{40}$/);
   assert.ok(["dev", "production"].includes(env.DELIVERY_TARGET));
