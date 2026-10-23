@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "profile": "web",
+  "nodeVersion": "24",
+  "automationSha": "1d4b201fc53f05c53de2fdc37ab9b184b676a1be",
+  "integration": false,
+  "legacyChecks": ["quality", "browser"],
+  "deploymentVariables": [
+    "DEPLOY_ENABLED",
+    "VERCEL_ORG_ID",
+    "VERCEL_PROJECT_ID",
+    "OTHER_VERCEL_PROJECT_ID",
+    "TARGET_ORIGIN",
+    "VITE_API_ORIGIN"
+  ],
+  "buildEnvironment": {
+    "dev": {
+      "VITE_APP_ENV": "dev",
+      "VITE_API_ORIGIN": "https://crypto-gateway-dev.benhxm.workers.dev"
+    },
+    "production": {
+      "VITE_APP_ENV": "production",
+      "VITE_API_ORIGIN": "https://crypto-gateway-production.benhxm.workers.dev"
+    }
+  }
+}

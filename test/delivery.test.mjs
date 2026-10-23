@@ -77,10 +77,17 @@ it("compares the exact backend schema without a moving-ref fallback", async () =
 });
 it("gates delivery behind the existing quality/browser jobs and native target environment", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
-  expect(workflow).toContain("needs: [source, quality, browser]");
-  expect(workflow).toContain("environment: ${{ inputs.target || 'dev' }}");
-  expect(workflow).toContain("cancel-in-progress: false");
-  expect(workflow).toContain("git merge-base --is-ancestor");
+  expect(workflow).toContain("needs: verify");
+  expect(workflow).toContain("environment: dev");
+  expect(workflow).toMatch(
+    /ci-cd-workflows\/\.github\/workflows\/deploy-web.yml@[a-f0-9]{40}/,
+  );
+  const production = readFileSync(
+    ".github/workflows/deploy-production.yml",
+    "utf8",
+  );
+  expect(production).toContain("needs: verify_release");
+  expect(production).toContain("environment: production");
   expect(workflow).not.toContain("VERCEL_DEV_VERIFICATION_TOKEN");
 });
 

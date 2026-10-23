@@ -7,6 +7,11 @@
     "node": "24.x"
   },
   "scripts": {
+    "ci:quality": "npm run check && npm audit --audit-level=high",
+    "ci:browser": "npm run test:e2e",
+    "ci:prepare": "node scripts/ci-prepare.mjs",
+    "ci:verify-artifact": "node scripts/ci-verify-artifact.mjs",
+    "preview": "vite preview --host localhost --strictPort",
     "dev": "vite --host localhost --port 5173 --strictPort",
     "dev:merchant": "node --env-file-if-exists=.env.server.local --import tsx server/local.ts",
     "lint": "eslint .",
