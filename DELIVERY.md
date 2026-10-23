@@ -2,9 +2,11 @@
 
 ## Versioned CI/CD entry points
 
+Automation 2.0 removes dev opt-ins when this adoption is merged to main.
+
 The [shared contract](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md)
 is pinned in `.github/ci-cd.json`. `ci.yml` checks PRs/main and delivers successful
-exact main commits to enabled dev. Manual `deploy-production.yml` selects a full
+exact main commits to dev without a deployment-enable switch. Manual `deploy-production.yml` selects a full
 merged `sha`, requires retained successful dev evidence, verifies the candidate,
 then waits for native approval. CI dispatch is the exact-SHA dev recovery path.
 These supersede older combined target-selector invocations, not existing
@@ -21,7 +23,7 @@ No enablement, credential, compatibility pin, resource or payment state changes
 are part of this migration. Historical sources lacking versioned hooks fail
 closed; immutable artifact recovery remains separately authorized.
 
-Local → dev → production, no staging. Independent frontend projects/aliases, server-only example credentials, API origins and deployment credentials per hosted environment. Production is Devnet-only. CI includes disabled-by-default delivery jobs; this local source change does not provision resources, configure secrets or establish hosted acceptance.
+Local → dev → production, no staging. Independent frontend projects/aliases, server-only example credentials, API origins and deployment credentials per hosted environment. Production is Devnet-only. Successful main verification automatically starts dev delivery; production remains opt-in. This local source change does not provision resources, configure secrets or establish hosted acceptance.
 
 Vercel functions in `api/demo` reuse the server-only merchant adapter. Configure `DEMO_ENABLED`, `DEMO_FRONTEND_ORIGIN`, `GATEWAY_ORIGIN`, `DEMO_MERCHANT_API_KEY` and optional `DEMO_WEBHOOK_SECRET` as server runtime values. Never expose them through VITE. The example receiver verifies raw-body HMAC/timestamps but its deduplication is in memory and demonstrates acknowledgment only; real fulfillment needs durable event deduplication.
 
@@ -54,14 +56,14 @@ Before production: manual localhost acceptance, live controlled dev wallet/verif
 
 The owner assigns a bounded task and authorizes its endpoint; no backlog pickup is automatic. The assistant owns implementation, affected checks, authorized PR publication and valid CI/review repairs, including resuming a paused CodeRabbit review. `.coderabbit.yaml` enables real approval after review and prevents author-triggered approval/resolve overrides. The owner decides when to merge after current-head checks and approval pass. No automatic merger, merge PAT or separate orchestration service is required.
 
-An authorized human merge triggers the existing main-push dev pipeline and hosted smoke when deployment is enabled. Verify exact source/provider identities and affected dev behavior, not just PR CI. Private-dev access and provisioning retain their separate prerequisites; this workflow grants no new credentials or activation. Production uses the exact accepted dev source pair, manual dispatch and native approval as described below.
+An authorized human merge triggers the main-push dev pipeline and hosted smoke after successful verification, without a deployment-enable flag. Verify exact source/provider identities and affected dev behavior, not just PR CI. Private-dev access and provisioning retain their separate prerequisites; this workflow grants no new credentials. Production uses the exact accepted dev source pair, manual dispatch and native approval as described below.
 
 - Merge → existing quality/browser checks on the exact merged source → isolated dev.
   Manual dev redeployment and production dispatch run from main with an exact full
   `sha`. Source ancestry is checked before candidate code executes. Manual source
   selection never silently substitutes latest main. Deployment serializes per target;
   superseded automatic dev runs fail before mutation. Active operations are not cancelled.
-- Each GitHub environment has `DEPLOY_ENABLED` (unset/false until authorized),
+- Production has `DEPLOY_ENABLED` (unset/false until authorized); dev ignores it. Each environment has
   `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `OTHER_VERCEL_PROJECT_ID`, `TARGET_ORIGIN`
   and `VITE_API_ORIGIN` variables, plus its own project-scoped `VERCEL_TOKEN` secret.
   Password-manager label: `crypto-gateway-production-vercel-deploy` (or dev).
@@ -140,7 +142,7 @@ remain owner checks before native approval. The backend runbook's
 [matching policy](https://github.com/benhammoush/crypto_gateway_backend/blob/main/DELIVERY.md#approved-first-production-policy)
 also applies to the pair; each repository retains its own dispatch and approval.
 
-Per-environment `DEPLOY_ENABLED`, native approval, isolation and schema/provenance
+Production `DEPLOY_ENABLED`, native approval, isolation and schema/provenance
 guards remain mandatory. This policy does not authorize publication, activation,
 provisioning, migrations, deployment, payment execution or data mutation.
 Production remains Devnet-only.

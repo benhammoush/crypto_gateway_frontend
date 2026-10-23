@@ -27,10 +27,10 @@ jobs:
   # Shared: retain the verified production output; differing target inputs do not
   # mean dev and production frontend bundles are byte-identical. No deploy secrets here.
   verify_release:
-    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-web.yml@37151e604a66c0dbb68b5631534c7124d4d95798
+    uses: benhammoush/ci-cd-workflows/.github/workflows/verify-web.yml@d7d0c297f0b4038e9815349fd16f79bb92d77ceb
     with:
       # Shared: use the same immutable implementation and reusable workflow revision.
-      automation_sha: 37151e604a66c0dbb68b5631534c7124d4d95798
+      automation_sha: d7d0c297f0b4038e9815349fd16f79bb92d77ceb
       source_sha: ${{ inputs.sha }}
       # Project public build values come from .github/ci-cd.json, not secret credentials.
       environment: production
@@ -48,9 +48,9 @@ jobs:
   deploy_production:
     needs: verify_release
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
-    uses: benhammoush/ci-cd-workflows/.github/workflows/deploy-web.yml@37151e604a66c0dbb68b5631534c7124d4d95798
+    uses: benhammoush/ci-cd-workflows/.github/workflows/deploy-web.yml@d7d0c297f0b4038e9815349fd16f79bb92d77ceb
     with:
-      automation_sha: 37151e604a66c0dbb68b5631534c7124d4d95798
+      automation_sha: d7d0c297f0b4038e9815349fd16f79bb92d77ceb
       source_sha: ${{ inputs.sha }}
       environment: production
       node_version: "24"

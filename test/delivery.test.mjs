@@ -32,7 +32,6 @@ afterEach(() => vi.unstubAllGlobals());
 it("requires isolated explicit configuration and immutable backend provenance", () => {
   expect(() => checkDelivery(environment(), contract)).not.toThrow();
   for (const [key, value] of [
-    ["DEPLOY_ENABLED", "false"],
     ["GITHUB_REF", "refs/heads/feature"],
     ["SOURCE_SHA", "main"],
     ["DELIVERY_TARGET", "staging"],
@@ -50,6 +49,14 @@ it("requires isolated explicit configuration and immutable backend provenance", 
     checkDelivery(environment(), { ...contract, revision: "local" }),
   ).toThrow();
 });
+it.each([undefined, "false", "true"])(
+  "dev ignores deployment opt-in %s",
+  (enabled) => {
+    expect(() =>
+      checkDelivery({ ...environment(), DEPLOY_ENABLED: enabled }, contract),
+    ).not.toThrow();
+  },
+);
 it("production requires a new manual dispatch and has no dev verification token", () => {
   const env = {
     ...environment(),
@@ -59,6 +66,10 @@ it("production requires a new manual dispatch and has no dev verification token"
   expect(() => checkDelivery(env, contract)).toThrow();
   env.GITHUB_EVENT_NAME = "workflow_dispatch";
   expect(() => checkDelivery(env, contract)).not.toThrow();
+  for (const enabled of [undefined, "false"])
+    expect(() =>
+      checkDelivery({ ...env, DEPLOY_ENABLED: enabled }, contract),
+    ).toThrow();
   env.GITHUB_RUN_ATTEMPT = "2";
   expect(() => checkDelivery(env, contract)).toThrow();
 });
