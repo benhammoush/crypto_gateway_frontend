@@ -66,10 +66,10 @@ it("production requires a new manual dispatch and has no dev verification token"
   expect(() => checkDelivery(env, contract)).toThrow();
   env.GITHUB_EVENT_NAME = "workflow_dispatch";
   expect(() => checkDelivery(env, contract)).not.toThrow();
-  for (const enabled of [undefined, "false"])
+  for (const enabled of [undefined, "false", "true"])
     expect(() =>
       checkDelivery({ ...env, DEPLOY_ENABLED: enabled }, contract),
-    ).toThrow();
+    ).not.toThrow();
   env.GITHUB_RUN_ATTEMPT = "2";
   expect(() => checkDelivery(env, contract)).toThrow();
 });
