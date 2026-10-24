@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
   fireEvent,
@@ -22,25 +22,30 @@ vi.mock("../../src/wallet", async (original) => ({
   sendPayment: vi.fn(),
 }));
 
-const payment: Payment = {
-  id: "fixture-payment",
-  merchantReference: "reference",
-  usdCents: 1000,
-  lamports: "100000000",
-  displaySol: "0.100000000",
-  network: "solana-devnet",
-  asset: "SOL",
-  recipient: "recipient",
-  memo: "memo",
-  rpcUrl: "https://api.devnet.solana.com",
-  createdAt: Date.now(),
-  quote: { usdPrice: "100", blockId: 123 },
-  settledAt: null,
-  expiresAt: Date.now() + 900_000,
-  status: "pending",
-  signature: null,
-  attempts: [],
-};
+let payment: Payment;
+
+beforeEach(() => {
+  const now = Date.now();
+  payment = {
+    id: "fixture-payment",
+    merchantReference: "reference",
+    usdCents: 1000,
+    lamports: "100000000",
+    displaySol: "0.100000000",
+    network: "solana-devnet",
+    asset: "SOL",
+    recipient: "recipient",
+    memo: "memo",
+    rpcUrl: "https://api.devnet.solana.com",
+    createdAt: now,
+    quote: { usdPrice: "100", blockId: 123 },
+    settledAt: null,
+    expiresAt: now + 900_000,
+    status: "pending",
+    signature: null,
+    attempts: [],
+  };
+});
 
 afterEach(() => {
   cleanup();
