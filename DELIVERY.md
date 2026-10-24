@@ -2,25 +2,38 @@
 
 ## Versioned CI/CD entry points
 
-Automation 3.0 removes production deployment opt-ins; dev remains automatic.
-The verified immutable v3.0.0 release is pinned below. Delete obsolete live
-deployment flags only after this consumer adoption is merged and verified.
+Automation 4.0 retains flag-free delivery and adds consistent job names and weekly
+vulnerability audits. The published immutable shared revision is pinned in
+`.github/ci-cd.json`; source adoption does not change live settings.
+
+Prepared job naming replaces the old verification aliases with standalone `Verify`.
+Existing required-check settings below remain live until the owner approves the
+[coordinated check-name migration](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md#canonical-job-names-and-required-check-migration).
+Do not merge the naming change under unchanged protections. Workflow comments are
+limited to two header lines; this runbook and the shared contract own the detail.
+
+The `.github/workflows/weekly-vuln-audit.yml` caller uses the same published shared
+SHA as release workflows and runs weekly or manually after adoption on main.
+It checks vulnerabilities without updating dependencies or deploying. See the
+[shared audit contract](https://github.com/benhammoush/ci-cd-workflows/blob/64b5e00a3d2895a8cba05b040f0d5a0415613d9e/docs/contract.md#weekly-vulnerability-audits).
 
 ### Read-only failed-delivery diagnosis
 
-After merge and separate execution authorization, `diagnose-dev-delivery.yml`
-reads one recorded dev deployment from main using its exact `deployment_id` and
-full source `sha`. It uses the existing dev-scoped `VERCEL_TOKEN` for two fixed
+The `diagnose-dev-delivery.yml` workflow entry point is retired. The retained,
+tested `scripts/diagnose-dev-delivery.mjs` CLI requires separate execution approval
+and reads one recorded dev deployment using its exact deployment ID and full source
+SHA. It uses the existing dev-scoped `VERCEL_TOKEN` for two fixed
 provider metadata GETs, then checks the provider-bound deployment URL and fixed
 stable dev origin without application credentials or redirect following. Responses
 are bounded; summaries contain only selected identities, booleans and HTTP status
 codes, never response bodies, tokens or redirect locations. Protection-config
 presence alone does not prove a URL requires authentication; inspect its HTTP
 result. Source/artifact matches are not full configuration or user acceptance.
-The manual job shares the dev mutation lock but performs no mutations, retries,
-deployments, payment requests or configuration changes. It neither requires nor
-validates `SMOKE_BYPASS`. Merging this source still triggers ordinary main CI/dev
-delivery; running the diagnostic is a separate read-only operation.
+The CLI performs no mutations, retries, deployments, payment requests or
+configuration changes. It neither requires nor validates `SMOKE_BYPASS`.
+It does not acquire a GitHub workflow lock; arrange a stable target before an
+authorized inspection. Merging this source still triggers ordinary main CI/dev
+delivery; removing the diagnostic workflow does not authorize CLI execution.
 
 The [shared contract](https://github.com/benhammoush/ci-cd-workflows/blob/main/docs/contract.md)
 is pinned in `.github/ci-cd.json`. `ci.yml` checks PRs/main and delivers successful
@@ -62,7 +75,7 @@ not a substitute for read-only verification of the deployed Vercel functions.
 
 Before hosted acceptance, verify that the runtime provides the raw request stream without pre-parsing; never verify webhook signatures against reserialized JSON. Add native/edge abuse controls to public amount entry. The backend accepts only configured webhook HTTPS destinations; local HTTP receivers require fixtures or an explicitly approved public tunnel, not disabling webhook security.
 
-Protect main with strict required `quality`/`browser` (GitHub Actions) and `CodeRabbit` checks bound to their respective apps, at least one approving review, stale-review dismissal, independent last-push approval and resolved conversations; block force push/deletion including administrator bypass. A successful CodeRabbit status alone is not approval: verify that its integration reviews and approves the current head. Configure dev/production native environments restricted to main, production explicit approval and no bypass. Disable provider Git auto-deploy. If enforceable approval is unavailable, leave production disabled pending a separately approved alternative.
+Protect main with strict required `Verify` (GitHub Actions) and `CodeRabbit` checks bound to their respective apps, replacing prior aliases through the coordinated migration. Retain at least one approving review, stale-review dismissal, independent last-push approval and resolved conversations; block force push/deletion including administrator bypass. A successful CodeRabbit status alone is not approval: verify that its integration reviews and approves the current head. Configure dev/production native environments restricted to main, production explicit approval and no bypass. Disable provider Git auto-deploy. If enforceable approval is unavailable, leave production disabled pending a separately approved alternative.
 
 Select an explicit compatible backend SHA and generated schema hash. Deploy backward-compatible backend first, then frontend. Record exact frontend/backend source revisions, versions, CI results, provider identities, migrations and any prior recoverable pair. First production uses the approved no-predecessor exception below. No cross-repository coordinator or latest-main fallback. Serialize target operations, preserve exact accepted source/lockfile identity, and repeat affected acceptance after dev drift.
 
@@ -114,9 +127,10 @@ An authorized human merge triggers the main-push dev pipeline and hosted post-de
 
 ## Read-only dev access verification
 
-After its reviewed source is merged, the separate **Verify dev access (read-only)**
-workflow may be manually dispatched from main under separate execution approval.
-It uses only the dev environment with deployment tracking disabled and requires
+The old `verify-dev.yml` workflow entry point is retired. Its tested
+`scripts/verify-dev.mjs` CLI is retained for separately authorized access checks;
+it is not a deployment or a replacement for the separate
+`scripts/diagnose-dev-delivery.mjs` CLI. The access-verification CLI requires
 deployment/demo flags to remain unset or false. The existing dev Vercel identities
 and `VERCEL_TOKEN` are used for one bounded authenticated GET of that exact project.
 No deployment, provider setting change, runtime-secret read, payment, dependency
@@ -127,7 +141,7 @@ and inaccessible provider state fail closed. An absent current target is reporte
 without claiming empty history or an accepted predecessor. Successful inspection
 does not prove least-privilege token scope, absence of other deployment writers,
 origin ownership, runtime configuration, deployment capability or hosted-payment
-acceptance. Retain the workflow source SHA and sanitized result; subsequent setup,
+acceptance. Retain the CLI source SHA and sanitized result; subsequent setup,
 activation and deployment remain separate approvals. Never enable delivery merely
 to run this check.
 

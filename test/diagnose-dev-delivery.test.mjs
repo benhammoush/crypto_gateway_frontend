@@ -163,19 +163,8 @@ it("rejects oversized metadata and never retries network failures", async () => 
   expect(network).toHaveBeenCalledTimes(1);
 });
 
-it("keeps diagnostic execution manual, environment-scoped, serialized and free of deployment commands", () => {
-  const workflow = readFileSync(
-    ".github/workflows/diagnose-dev-delivery.yml",
-    "utf8",
-  );
-  expect(workflow).toContain("workflow_dispatch:");
-  expect(workflow).not.toMatch(/^ {2}(push|pull_request):/m);
-  expect(workflow).toContain("deployment: false");
-  expect(workflow).toContain(
-    "group: deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev",
-  );
-  expect(workflow).toContain("ref: ${{ github.workflow_sha }}");
-  expect(workflow).not.toMatch(
-    /DEPLOY_ENABLED|SMOKE_BYPASS|secrets: inherit|npm ci|wrangler|vercel deploy/,
-  );
+it("retires the hosted diagnostic workflow entry point", () => {
+  expect(() =>
+    readFileSync(".github/workflows/diagnose-dev-delivery.yml"),
+  ).toThrow(expect.objectContaining({ code: "ENOENT" }));
 });
