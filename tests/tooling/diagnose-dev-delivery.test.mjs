@@ -2,13 +2,13 @@ import { expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { diagnoseDevDelivery } from "../scripts/diagnose-dev-delivery.mjs";
+import { diagnoseDevDelivery } from "../../scripts/diagnose-dev-delivery.mjs";
 
 const { Response } = globalThis;
 
 it("never prints provider errors or credentials from the diagnostic CLI", () => {
   const module = new URL(
-    "../scripts/diagnose-dev-delivery.mjs",
+    "../../scripts/diagnose-dev-delivery.mjs",
     import.meta.url,
   );
   const source = `process.argv[1] = ${JSON.stringify(fileURLToPath(module))}; globalThis.fetch = async () => { throw new Error('private-provider-payload synthetic-secret'); }; await import(${JSON.stringify(module.href)});`;

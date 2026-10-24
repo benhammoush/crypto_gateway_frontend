@@ -12,8 +12,8 @@ import {
   WalletSubmissionUncertain,
   walletDiagnostic,
   walletFailureDetails,
-} from "../src/wallet";
-import type { Payment } from "../src/types";
+} from "../../src/wallet";
+import type { Payment } from "../../src/types";
 
 const payer = new PublicKey("11111111111111111111111111111111");
 type GenesisHash = Awaited<ReturnType<Connection["getGenesisHash"]>>;
