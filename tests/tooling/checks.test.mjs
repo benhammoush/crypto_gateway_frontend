@@ -1,3 +1,7 @@
+/** Required quality-check and tooling configuration regressions.
+ * @file
+ */
+
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 

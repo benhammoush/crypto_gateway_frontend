@@ -1,3 +1,7 @@
+/** Delivery configuration, artifact and provider identity regressions.
+ * @file
+ */
+
 import { afterEach, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -78,7 +82,11 @@ it("compares the exact backend schema without a moving-ref fallback", async () =
   const hash = createHash("sha256")
     .update(await format(JSON.stringify(schema), { parser: "json" }))
     .digest("hex");
-  const fetch = vi.fn(async () => ({ ok: true, json: async () => schema }));
+  const fetch = vi.fn(async () => ({
+    ok: true,
+    /** Return controlled project-schema evidence. */
+    json: async () => schema,
+  }));
   vi.stubGlobal("fetch", fetch);
   await checkBackendContract({ ...contract, sha256: hash });
   expect(fetch.mock.calls[0][0]).toContain(contract.revision);
@@ -110,7 +118,11 @@ it("reads only the selected target project and retains its prior identity", asyn
     name: "crypto-gateway-dev",
     targets: { production: { id: "dpl_previous" } },
   };
-  const fetch = vi.fn(async () => ({ ok: true, json: async () => project }));
+  const fetch = vi.fn(async () => ({
+    ok: true,
+    /** Return the controlled project identity response. */
+    json: async () => project,
+  }));
   vi.stubGlobal("fetch", fetch);
   expect(await currentTarget(env)).toEqual({
     project: env.VERCEL_PROJECT_ID,
@@ -134,7 +146,11 @@ it("allows production bootstrap with an explicit no-predecessor record, not reco
     accountId: env.VERCEL_ORG_ID,
     name: "crypto-gateway-production",
   };
-  const fetch = vi.fn(async () => ({ ok: true, json: async () => project }));
+  const fetch = vi.fn(async () => ({
+    ok: true,
+    /** Return the controlled project identity response. */
+    json: async () => project,
+  }));
   vi.stubGlobal("fetch", fetch);
   expect(await currentTarget(env)).toEqual({
     project: env.VERCEL_PROJECT_ID,

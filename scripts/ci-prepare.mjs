@@ -1,4 +1,6 @@
-/** Package native Node function bytes offline; never read server runtime secrets. @file */
+/** Package native Node function bytes offline; never read server runtime secrets.
+ * @file
+ */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import ts from "typescript";

@@ -1,4 +1,6 @@
-/** Deploy the checked SPA and merchant functions without rebuilding or exposing runtime credentials. @file */
+/** Deploy the checked SPA and merchant functions without rebuilding or exposing runtime credentials.
+ * @file
+ */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

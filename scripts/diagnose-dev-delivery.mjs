@@ -1,9 +1,12 @@
-/** Inspect one recorded dev deployment with bounded reads; never deploy or expose provider bodies. @file */
+/** Inspect one recorded dev deployment with bounded reads; never deploy or expose provider bodies.
+ * @file
+ */
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+/** Controlled read-only diagnostic failure without raw provider details. */
 class DiagnosticError extends Error {}
 
 /** Read bounded text, cancelling unread data without reflecting its contents. */

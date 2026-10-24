@@ -1,4 +1,9 @@
 // @vitest-environment jsdom
+/**
+ * Merchant form and checkout navigation regressions.
+ * @packageDocumentation
+ */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,

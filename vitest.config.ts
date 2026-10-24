@@ -1,3 +1,8 @@
+/**
+ * Unit and integration suite selection without browser end-to-end discovery.
+ * @packageDocumentation
+ */
+
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({

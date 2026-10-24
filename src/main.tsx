@@ -1,3 +1,8 @@
+/**
+ * Browser application mounting at the HTML entry boundary.
+ * @packageDocumentation
+ */
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";

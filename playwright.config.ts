@@ -1,3 +1,8 @@
+/**
+ * Browser-engine coverage and local-server ownership for checkout tests.
+ * @packageDocumentation
+ */
+
 import { defineConfig, devices } from "@playwright/test";
 
 const port = Number(process.env.PLAYWRIGHT_PORT ?? 5173);

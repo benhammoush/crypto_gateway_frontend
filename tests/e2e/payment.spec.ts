@@ -1,3 +1,8 @@
+/**
+ * Browser checkout flow with controlled wallet and gateway responses.
+ * @packageDocumentation
+ */
+
 import { expect, test } from "@playwright/test";
 import { loadEnv } from "vite";
 import {
@@ -26,9 +31,14 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
       phantom: {
         solana: {
           isPhantom: true,
+          /** Return the connected public key from the controlled wallet. */
           connect: async () => ({
-            publicKey: { toBase58: () => "1".repeat(32) },
+            publicKey: {
+              /** Return the fixture public key in wallet encoding. */
+              toBase58: () => "1".repeat(32),
+            },
           }),
+          /** Count a controlled submission and return its fixture signature. */
           signAndSendTransaction: async () => {
             const state = window as unknown as { fixtureSendCount: number };
             state.fixtureSendCount++;
@@ -167,18 +177,23 @@ test("browser wallet flow verifies only after authoritative settlement", async (
       phantom: {
         solana: {
           isPhantom: true,
+          /** Defer connection until the test explicitly approves the fixture wallet. */
           connect: () =>
             new Promise((resolve) =>
               Object.assign(window, {
+                /** Resolve the wallet connection after the test has arranged expiry state. */
                 approveFixtureWallet: () =>
                   resolve({
                     publicKey: {
+                      /** Return the fixture public key in wallet encoding. */
                       toBase58: () => "11111111111111111111111111111111",
                     },
                   }),
               }),
             ),
+          /** Inspect serialized wire bytes before returning the controlled submission result. */
           signAndSendTransaction: async (transaction: {
+            /** Expose the bytes passed across the injected-wallet boundary. */
             serialize(): Uint8Array;
           }) => {
             const bytes = transaction.serialize();
@@ -186,6 +201,7 @@ test("browser wallet flow verifies only after authoritative settlement", async (
               throw new Error("Wallet serialization must be synchronous.");
             await (
               window as unknown as {
+                /** Check the serialized wallet message in the Node-side fixture. */
                 validateFixtureMessage(wire: number[]): Promise<void>;
               }
             ).validateFixtureMessage(Array.from(bytes));
@@ -270,7 +286,10 @@ test("browser wallet flow verifies only after authoritative settlement", async (
   await page.waitForFunction(() => "approveFixtureWallet" in window);
   await page.evaluate(() =>
     (
-      window as unknown as { approveFixtureWallet(): void }
+      window as unknown as {
+        /** Complete the deferred fixture-wallet connection. */
+        approveFixtureWallet(): void;
+      }
     ).approveFixtureWallet(),
   );
   await expect(page.locator('[aria-current="step"]')).toHaveText(

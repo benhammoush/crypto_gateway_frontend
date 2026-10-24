@@ -1,3 +1,8 @@
+/**
+ * Gateway transport, public errors and monetary-input regressions.
+ * @packageDocumentation
+ */
+
 import { afterEach, expect, it, vi } from "vitest";
 import { request } from "../../src/api";
 

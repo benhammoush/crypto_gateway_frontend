@@ -1,3 +1,8 @@
+/**
+ * Credential-isolated merchant requests and authenticated settlement webhooks.
+ * @packageDocumentation
+ */
+
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
@@ -24,6 +29,7 @@ export async function merchantHandler(
 ): Promise<void> {
   res.setHeader("content-type", "application/json");
   res.setHeader("cache-control", "no-store");
+  /** Return the adapter error without exposing credentials or upstream response details. */
   const fail = (status: number, message: string) => {
     res.statusCode = status;
     res.end(JSON.stringify({ error: { code: "DEMO_ERROR", message } }));

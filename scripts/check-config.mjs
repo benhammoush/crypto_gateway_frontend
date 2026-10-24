@@ -1,3 +1,7 @@
+/** Reject unsafe public build configuration before bundling.
+ * @file
+ */
+
 import { loadEnv } from "vite";
 const env = {
   ...loadEnv("production", process.cwd(), "VITE_"),
