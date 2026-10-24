@@ -7,11 +7,11 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import App from "../src/App";
-import { request } from "../src/api";
+import App from "../../src/App";
+import { request } from "../../src/api";
 
-vi.mock("../src/api", async (original) => ({
-  ...(await original<typeof import("../src/api")>()),
+vi.mock("../../src/api", async (original) => ({
+  ...(await original<typeof import("../../src/api")>()),
   request: vi.fn(),
 }));
 

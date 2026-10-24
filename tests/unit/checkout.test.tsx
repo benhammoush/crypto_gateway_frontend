@@ -7,18 +7,18 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { parseUsd, paymentStatus, submitSignature } from "../src/api";
-import { Checkout } from "../src/App";
-import { Payment, PROGRESS } from "../src/types";
-import { sendPayment, WalletSubmissionUncertain } from "../src/wallet";
+import { parseUsd, paymentStatus, submitSignature } from "../../src/api";
+import { Checkout } from "../../src/App";
+import { Payment, PROGRESS } from "../../src/types";
+import { sendPayment, WalletSubmissionUncertain } from "../../src/wallet";
 
-vi.mock("../src/api", async (original) => ({
-  ...(await original<typeof import("../src/api")>()),
+vi.mock("../../src/api", async (original) => ({
+  ...(await original<typeof import("../../src/api")>()),
   paymentStatus: vi.fn(),
   submitSignature: vi.fn(),
 }));
-vi.mock("../src/wallet", async (original) => ({
-  ...(await original<typeof import("../src/wallet")>()),
+vi.mock("../../src/wallet", async (original) => ({
+  ...(await original<typeof import("../../src/wallet")>()),
   sendPayment: vi.fn(),
 }));
 

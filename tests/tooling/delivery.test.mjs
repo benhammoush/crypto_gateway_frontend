@@ -6,7 +6,7 @@ import {
   checkBackendContract,
   checkDelivery,
   currentTarget,
-} from "../scripts/check-delivery.mjs";
+} from "../../scripts/check-delivery.mjs";
 
 /** Create synthetic environment-scoped release configuration. */
 function environment() {

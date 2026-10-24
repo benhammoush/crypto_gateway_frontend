@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { runInNewContext } from "node:vm";
 import { build } from "vite";
-import viteConfig from "../vite.config.ts";
+import viteConfig from "../../vite.config.ts";
 
 const directories = [];
 const metadataKey = "VITE_VERCEL_OBSERVABILITY_CLIENT_CONFIG";

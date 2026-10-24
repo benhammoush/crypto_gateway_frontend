@@ -11,7 +11,7 @@ import { createServer, request } from "node:http";
 import type { IncomingHttpHeaders, Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createHmac } from "node:crypto";
-import { merchantHandler } from "../server/merchant";
+import { merchantHandler } from "../../server/merchant";
 
 let server: Server;
 let port: number;
