@@ -14,7 +14,7 @@ export default defineConfig({
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
-  testDir: "./e2e",
+  testDir: "./tests/e2e",
   use: { baseURL, headless: true },
   webServer: {
     command: `npm run preview -- --port ${port}`,
