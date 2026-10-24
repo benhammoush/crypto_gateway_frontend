@@ -9,9 +9,9 @@ const origin =
   import.meta.env.VITE_API_ORIGIN ??
   (import.meta.env.DEV ? "http://localhost:8787" : "");
 
-/** Public gateway failure with an actionable code and request correlation. */
+/** Public gateway failure with an actionable message and code. */
 export class ApiError extends Error {
-  /** Retain the public message, code and optional request ID for UI error handling. */
+  /** Retain the public message and code for UI error handling. */
   constructor(
     message: string,
     public code: string,

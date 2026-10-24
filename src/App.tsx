@@ -234,7 +234,10 @@ export function Checkout({ id, token }: { id: string; token: string }) {
     };
   }, [id, token, savedKey, round]);
 
-  /** Submit once and retain uncertain-submission state until backend verification resolves it. */
+  /**
+   * Guard wallet submission with uncertainty until the returned signature is saved.
+   * The candidate signature then continues preventing duplicate payment during verification.
+   */
   async function pay() {
     if (!payment || busy || candidate.current || uncertain) return;
     setBusy(true);
