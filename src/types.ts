@@ -15,5 +15,5 @@ export const PROGRESS = [
   "Payment verified",
 ] as const;
 
-/** Checkout progress retained across status and submission transitions. */
+/** Checkout progress label drawn from the supported PROGRESS values. */
 export type Progress = (typeof PROGRESS)[number];

@@ -175,7 +175,7 @@ export function Checkout({ id, token }: { id: string; token: string }) {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     let polls = 0;
-    /** Refresh payment state while this checkout remains active. */
+    /** Refresh payment state and submit a saved candidate signature when verification has not recorded it yet. */
     async function poll() {
       try {
         const current = await paymentStatus(id, token, controller.signal);
