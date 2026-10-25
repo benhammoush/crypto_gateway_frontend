@@ -44,7 +44,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** Invoke the merchant adapter with controlled requests and server bindings. */
+/** Invoke the merchant adapter with controlled requests and server bindings.
+ * @param path - Local merchant endpoint under test.
+ * @param body - Raw body bytes represented as a string.
+ * @param headers - Overrides for origin, authorization or webhook signatures.
+ * @param method - HTTP method, defaulting to the payment POST path.
+ * @returns The local response status, raw body and headers.
+ */
 function call(
   path: string,
   body: string,
@@ -120,19 +126,22 @@ it("keeps the payment guard authoritative after an earlier enabled status respon
 });
 
 it("creates payments server-side without returning the merchant credential", async () => {
-  const upstream = vi.fn(async (_url: string, options: RequestInit) => {
-    expect(JSON.parse(String(options.body))).toEqual({
+  const upstream = vi.fn((_url: string, options: RequestInit) => {
+    expect(typeof options.body).toBe("string");
+    expect(JSON.parse(options.body as string)).toEqual({
       usdCents: 1234,
       merchantReference: "demo:fixture_key_1234",
     });
     expect((options.headers as Record<string, string>).authorization).toContain(
       "fixture_merchant_credential",
     );
-    return Response.json({
-      data: {
-        checkoutUrl: `http://localhost:5173/checkout/payment#${"a".repeat(64)}`,
-      },
-    });
+    return Promise.resolve(
+      Response.json({
+        data: {
+          checkoutUrl: `http://localhost:5173/checkout/payment#${"a".repeat(64)}`,
+        },
+      }),
+    );
   });
   vi.stubGlobal("fetch", upstream);
   const result = await call("/api/demo/payments", '{"usdCents":1234}');
@@ -158,18 +167,20 @@ it.each([
   "reports only the allowlisted %s code and UUID request ID",
   async (code, status) => {
     const requestId = "22222222-2222-4222-8222-222222222222";
-    const upstream = vi.fn(async () =>
-      Response.json(
-        {
-          error: {
-            code,
-            requestId,
-            message:
-              "private-provider-message-with-fixture_merchant_credential",
-            url: "https://provider.example/?key=private-provider-key",
+    const upstream = vi.fn(() =>
+      Promise.resolve(
+        Response.json(
+          {
+            error: {
+              code,
+              requestId,
+              message:
+                "private-provider-message-with-fixture_merchant_credential",
+              url: "https://provider.example/?key=private-provider-key",
+            },
           },
-        },
-        { status },
+          { status },
+        ),
       ),
     );
     vi.stubGlobal("fetch", upstream);
@@ -199,19 +210,25 @@ it.each([
   async (requestId) => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        Response.json(
-          {
-            error: { code: "PRICE_UNAVAILABLE", requestId },
-          },
-          { status: 503 },
+      vi.fn(() =>
+        Promise.resolve(
+          Response.json(
+            {
+              error: { code: "PRICE_UNAVAILABLE", requestId },
+            },
+            { status: 503 },
+          ),
         ),
       ),
     );
     const result = await call("/api/demo/payments", '{"usdCents":100}');
-    expect(JSON.parse(result.body).error.message).toBe(
-      "Unable to create payment. Retry with the same amount. Diagnostic: PRICE_UNAVAILABLE.",
-    );
+    expect(JSON.parse(result.body)).toEqual({
+      error: {
+        code: "DEMO_ERROR",
+        message:
+          "Unable to create payment. Retry with the same amount. Diagnostic: PRICE_UNAVAILABLE.",
+      },
+    });
   },
 );
 
@@ -235,7 +252,7 @@ it.each([
   async (body) => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => Response.json(body, { status: 503 })),
+      vi.fn().mockResolvedValue(Response.json(body, { status: 503 })),
     );
     const result = await call("/api/demo/payments", '{"usdCents":100}');
     expect(result.status).toBe(503);
@@ -251,28 +268,35 @@ it.each([
 it("does not trust error diagnostics inside a successful upstream response", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () =>
-      Response.json({
-        error: {
-          code: "UNAUTHORIZED",
-          requestId: "22222222-2222-4222-8222-222222222222",
-        },
-      }),
+    vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          error: {
+            code: "UNAUTHORIZED",
+            requestId: "22222222-2222-4222-8222-222222222222",
+          },
+        }),
+      ),
     ),
   );
   const result = await call("/api/demo/payments", '{"usdCents":100}');
-  expect(JSON.parse(result.body).error.message).toBe(
-    "Unable to create payment. Retry with the same amount.",
-  );
+  expect(JSON.parse(result.body)).toEqual({
+    error: {
+      code: "DEMO_ERROR",
+      message: "Unable to create payment. Retry with the same amount.",
+    },
+  });
 });
 
 it.each(["non-JSON response", "network exception"])(
   "does not leak a %s or automatically retry",
   async (failure) => {
-    const upstream = vi.fn(async () => {
+    const upstream = vi.fn(() => {
       if (failure === "network exception")
-        throw new Error("private-network-url-and-credential");
-      return new Response("private-provider-payload", { status: 502 });
+        return Promise.reject(new Error("private-network-url-and-credential"));
+      return Promise.resolve(
+        new Response("private-provider-payload", { status: 502 }),
+      );
     });
     vi.stubGlobal("fetch", upstream);
     const result = await call("/api/demo/payments", '{"usdCents":100}');

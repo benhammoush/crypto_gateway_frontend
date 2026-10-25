@@ -10,7 +10,9 @@ import { verifyDev } from "../../scripts/verify-dev.mjs";
 const { Response, AbortSignal } = globalThis;
 afterEach(() => vi.restoreAllMocks());
 
-/** Synthetic configuration; no provider credentials or calls. */
+/** Synthetic configuration; no provider credentials or calls.
+ * @returns Manual-main dev context with synthetic identifiers only.
+ */
 function environment() {
   return {
     GITHUB_EVENT_NAME: "workflow_dispatch",
@@ -24,7 +26,9 @@ function environment() {
   };
 }
 
-/** Return metadata for the exact fixture project, with no provider access. */
+/** Return metadata for the exact fixture project, with no provider access.
+ * @returns The fixture dev project's public identity.
+ */
 function project() {
   return { id: "prj_dev", accountId: "team_test", name: "crypto-gateway-dev" };
 }
@@ -59,7 +63,9 @@ it("reads only the exact dev project and emits no provider payload or secret", a
 it("cancels oversized response streams", async () => {
   let cancelled = false;
   const stream = new globalThis.ReadableStream({
-    /** Supply the controlled response stream for the body-size test. */
+    /** Supply the controlled response stream for the body-size test.
+     * @param controller - Stream controller receiving an oversized byte chunk.
+     */
     start(controller) {
       controller.enqueue(new Uint8Array(65_537));
     },

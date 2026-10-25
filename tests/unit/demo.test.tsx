@@ -40,25 +40,19 @@ describe("server-reported demo availability", () => {
       "Checking demo availability…",
     );
     expect(
-      (
-        screen.getByRole("button", {
-          name: /^Pay$/,
-        }) as HTMLButtonElement
-      ).disabled,
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: /^Pay$/,
+      }).disabled,
     ).toBe(true);
     expect(
-      (screen.getByLabelText("Amount in USD") as HTMLInputElement).disabled,
+      screen.getByLabelText<HTMLInputElement>("Amount in USD").disabled,
     ).toBe(true);
     submit();
     expect(request).toHaveBeenCalledOnce();
-    expect(request).toHaveBeenCalledWith(
-      "/api/demo/status",
-      expect.objectContaining({
-        method: "GET",
-        cache: "no-store",
-        signal: expect.any(AbortSignal),
-      }),
-    );
+    const [url, options] = vi.mocked(request).mock.calls[0];
+    expect(url).toBe("/api/demo/status");
+    expect(options).toMatchObject({ method: "GET", cache: "no-store" });
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("shows disabled mode and never posts a payment, including a synthetic form submit", async () => {
@@ -70,11 +64,9 @@ describe("server-reported demo availability", () => {
       ),
     );
     expect(
-      (
-        screen.getByRole("button", {
-          name: /^Pay$/,
-        }) as HTMLButtonElement
-      ).disabled,
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: /^Pay$/,
+      }).disabled,
     ).toBe(true);
     submit();
     expect(request).toHaveBeenCalledOnce();
@@ -91,11 +83,9 @@ describe("server-reported demo availability", () => {
         ),
       );
       expect(
-        (
-          screen.getByRole("button", {
-            name: /^Pay$/,
-          }) as HTMLButtonElement
-        ).disabled,
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: /^Pay$/,
+        }).disabled,
       ).toBe(true);
       submit();
       expect(request).toHaveBeenCalledOnce();
@@ -124,11 +114,9 @@ describe("server-reported demo availability", () => {
     const view = render(<App />);
     await waitFor(() =>
       expect(
-        (
-          screen.getByRole("button", {
-            name: /^Pay$/,
-          }) as HTMLButtonElement
-        ).disabled,
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: /^Pay$/,
+        }).disabled,
       ).toBe(false),
     );
     expect(screen.queryByRole("status")).toBeNull();
@@ -147,7 +135,7 @@ describe("server-reported demo availability", () => {
     render(<App />);
     await waitFor(() =>
       expect(
-        (screen.getByRole("button", { name: /^Pay$/ }) as HTMLButtonElement)
+        screen.getByRole<HTMLButtonElement>("button", { name: /^Pay$/ })
           .disabled,
       ).toBe(false),
     );

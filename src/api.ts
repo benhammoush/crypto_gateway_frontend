@@ -11,7 +11,10 @@ const origin =
 
 /** Public gateway failure with an actionable message and code. */
 export class ApiError extends Error {
-  /** Retain the public message and code for UI error handling. */
+  /** Retain the public message and code for UI error handling.
+   * @param message - Public explanation safe to show in checkout.
+   * @param code - Gateway error code for recovery decisions.
+   */
   constructor(
     message: string,
     public code: string,
@@ -20,12 +23,19 @@ export class ApiError extends Error {
   }
 }
 
-/** Derive the RPC route from trusted gateway configuration, never provider data. */
+/** Derive the RPC route from trusted gateway configuration, never provider data.
+ * @param id - Payment identifier whose checkout capability scopes the RPC route.
+ * @returns The gateway URL, without checkout credentials.
+ */
 export function checkoutRpcUrl(id: string): string {
   return `${origin}/v1/checkout/${encodeURIComponent(id)}/rpc`;
 }
 
-/** Fetch JSON and translate unsuccessful gateway responses into the public error contract. */
+/** Fetch JSON and translate unsuccessful gateway responses into the public error contract.
+ * @param url - Gateway or same-origin merchant endpoint.
+ * @param init - Request options, including any caller cancellation signal.
+ * @returns The response data, rejecting on transport or gateway failure.
+ */
 export async function request<T>(
   url: string,
   init: RequestInit = {},
@@ -48,7 +58,12 @@ export async function request<T>(
   return body.data;
 }
 
-/** Read backend-confirmed status using the checkout capability and optional cancellation signal. */
+/** Read backend-confirmed status using the checkout capability and optional cancellation signal.
+ * @param id - Payment identifier.
+ * @param token - Checkout capability, sent only in the authorization header.
+ * @param signal - Optional cancellation signal for the current checkout lifecycle.
+ * @returns The backend's current payment state.
+ */
 export function paymentStatus(
   id: string,
   token: string,
@@ -60,7 +75,12 @@ export function paymentStatus(
   });
 }
 
-/** Submit a wallet-returned signature for verification; submission alone is not settlement. */
+/** Submit a wallet-returned signature for verification; submission alone is not settlement.
+ * @param id - Payment identifier.
+ * @param token - Checkout capability authorizing the submission.
+ * @param signature - Candidate signature returned by the wallet.
+ * @returns The backend's payment state after recording the candidate.
+ */
 export function submitSignature(
   id: string,
   token: string,
@@ -76,7 +96,10 @@ export function submitSignature(
   });
 }
 
-/** Parse user input without floating-point multiplication. */
+/** Parse user input without floating-point multiplication.
+ * @param value - USD amount with at most two decimal places.
+ * @returns Integer USD cents, rejecting amounts outside the supported range.
+ */
 export function parseUsd(value: string): number {
   if (!/^\d{1,5}(?:\.\d{1,2})?$/.test(value))
     throw new Error("Enter a USD amount with at most two decimals.");

@@ -24,7 +24,12 @@ it("combines caller cancellation with the request deadline for stalled polling",
           activeSignal = init.signal!;
           activeSignal.addEventListener(
             "abort",
-            () => reject(activeSignal!.reason),
+            () => {
+              const reason: unknown = activeSignal!.reason;
+              reject(
+                reason instanceof Error ? reason : new Error("Request aborted"),
+              );
+            },
             { once: true },
           );
         }),

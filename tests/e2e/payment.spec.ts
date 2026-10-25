@@ -31,21 +31,34 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
       phantom: {
         solana: {
           isPhantom: true,
-          /** Return the connected public key from the controlled wallet. */
-          connect: async () => ({
-            publicKey: {
-              /** Return the fixture public key in wallet encoding. */
-              toBase58: () => "1".repeat(32),
-            },
-          }),
-          /** Count a controlled submission and return its fixture signature. */
-          signAndSendTransaction: async () => {
+          /** Return the connected public key from the controlled wallet.
+           * @returns The controlled payer's public-key adapter.
+           */
+          connect: () =>
+            Promise.resolve({
+              publicKey: {
+                /** Return the fixture public key in wallet encoding.
+                 * @returns The base58 fixture payer.
+                 */
+                toBase58: () => "1".repeat(32),
+              },
+            }),
+          /** Count a controlled submission and reject with a wallet RPC failure.
+           * @returns A rejected wallet request without broadcasting a transaction.
+           */
+          signAndSendTransaction: () => {
             const state = window as unknown as { fixtureSendCount: number };
             state.fixtureSendCount++;
-            throw {
-              code: -32603,
-              message: `Blockhash not found; https://rpc.invalid/?api-key=${secret}`,
-            };
+            return Promise.reject(
+              Object.assign(
+                new Error(
+                  `Blockhash not found; https://rpc.invalid/?api-key=${secret}`,
+                ),
+                {
+                  code: -32603,
+                },
+              ),
+            );
           },
         },
       },
@@ -55,7 +68,10 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
     if (route.request().method() === "OPTIONS") {
       await route.fulfill({ headers, body: "" });
     } else if (route.request().url().endsWith("/rpc")) {
-      const body = route.request().postDataJSON();
+      const body = route.request().postDataJSON() as {
+        id: number;
+        method: string;
+      };
       await route.fulfill({
         headers,
         json: {
@@ -177,31 +193,42 @@ test("browser wallet flow verifies only after authoritative settlement", async (
       phantom: {
         solana: {
           isPhantom: true,
-          /** Defer connection until the test explicitly approves the fixture wallet. */
+          /** Defer connection until the test explicitly approves the fixture wallet.
+           * @returns The controlled connection after explicit fixture approval.
+           */
           connect: () =>
             new Promise((resolve) =>
               Object.assign(window, {
-                /** Resolve the wallet connection after the test has arranged expiry state. */
+                /** Resolve the wallet connection after the test has arranged expiry state.
+                 * @returns Completion after resolving the deferred connection.
+                 */
                 approveFixtureWallet: () =>
                   resolve({
                     publicKey: {
-                      /** Return the fixture public key in wallet encoding. */
+                      /** Return the fixture public key in wallet encoding.
+                       * @returns The base58 fixture payer.
+                       */
                       toBase58: () => "11111111111111111111111111111111",
                     },
                   }),
               }),
             ),
-          /** Inspect serialized wire bytes before returning the controlled submission result. */
-          signAndSendTransaction: async (transaction: {
-            /** Expose the bytes passed across the injected-wallet boundary. */
-            serialize(): Uint8Array;
-          }) => {
+          /** Inspect serialized wire bytes before returning the controlled submission result.
+           * @param transaction - Wallet-bound transaction prepared by checkout.
+           * @returns The fixture signature after message validation succeeds.
+           */
+          signAndSendTransaction: async (
+            transaction: Pick<VersionedTransaction, "serialize">,
+          ) => {
             const bytes = transaction.serialize();
             if (!(bytes instanceof Uint8Array))
               throw new Error("Wallet serialization must be synchronous.");
             await (
               window as unknown as {
-                /** Check the serialized wallet message in the Node-side fixture. */
+                /** Check the serialized wallet message in the Node-side fixture.
+                 * @param wire - Serialized transaction byte values.
+                 * @returns Completion after assertions pass.
+                 */
                 validateFixtureMessage(wire: number[]): Promise<void>;
               }
             ).validateFixtureMessage(Array.from(bytes));
@@ -222,11 +249,14 @@ test("browser wallet flow verifies only after authoritative settlement", async (
       await route.fulfill({ headers, body: "" });
       return;
     }
-    const method = route.request().postDataJSON().method;
+    const body = route.request().postDataJSON() as {
+      method: string;
+      params: unknown[];
+      id: number;
+    };
+    const method = body.method;
     if (method === "getLatestBlockhash")
-      expect(route.request().postDataJSON().params).toEqual([
-        { commitment: "finalized" },
-      ]);
+      expect(body.params).toEqual([{ commitment: "finalized" }]);
     expect(route.request().headers().authorization).toBe(
       `Bearer ${"a".repeat(64)}`,
     );
@@ -235,7 +265,7 @@ test("browser wallet flow verifies only after authoritative settlement", async (
       headers,
       json: {
         jsonrpc: "2.0",
-        id: route.request().postDataJSON().id,
+        id: body.id,
         result:
           method === "getGenesisHash"
             ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"

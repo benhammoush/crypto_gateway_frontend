@@ -22,14 +22,21 @@ const paymentErrorCodes = new Set([
   "INTERNAL_ERROR",
 ]);
 
-/** Minimal server-only adapter, intentionally separate from the browser bundle. */
+/** Minimal server-only adapter, intentionally separate from the browser bundle.
+ * @param req - Incoming merchant request; credentials remain server-side.
+ * @param res - Response receiving only controlled public fields.
+ * @returns Completion after responding; failures are translated to public errors.
+ */
 export async function merchantHandler(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
   res.setHeader("content-type", "application/json");
   res.setHeader("cache-control", "no-store");
-  /** Return a controlled adapter error; allowlisted codes and valid request IDs may appear, never credentials or raw upstream bodies. */
+  /** Return a controlled adapter error; allowlisted codes and valid request IDs may appear, never credentials or raw upstream bodies.
+   * @param status - HTTP error status.
+   * @param message - Controlled public explanation, never raw upstream content.
+   */
   const fail = (status: number, message: string) => {
     res.statusCode = status;
     res.end(JSON.stringify({ error: { code: "DEMO_ERROR", message } }));
@@ -52,8 +59,12 @@ export async function merchantHandler(
       return fail(405, "Use a JSON POST request.");
     const chunks: Buffer[] = [];
     let size = 0;
-    for await (const value of req) {
-      const chunk = Buffer.from(value);
+    for await (const chunkValue of req) {
+      const value: unknown = chunkValue;
+      if (typeof value !== "string" && !(value instanceof Uint8Array))
+        return fail(400, "Invalid request body.");
+      const chunk =
+        typeof value === "string" ? Buffer.from(value) : Buffer.from(value);
       size += chunk.length;
       if (size > 4096) return fail(413, "Request body is too large.");
       chunks.push(chunk);
