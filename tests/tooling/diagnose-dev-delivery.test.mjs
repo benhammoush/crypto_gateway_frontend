@@ -31,7 +31,9 @@ it("never prints provider errors or credentials from the diagnostic CLI", () => 
   );
 });
 
-/** Synthetic metadata; all requests are intercepted and unrecognized paths fail. */
+/** Synthetic metadata; all requests are intercepted and unrecognized paths fail.
+ * @returns Dev context, mutable metadata fixtures and their intercepted transport.
+ */
 function fixture() {
   const env = {
     GITHUB_ACTIONS: "true",

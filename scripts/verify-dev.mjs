@@ -9,12 +9,20 @@ import { pathToFileURL } from "node:url";
 /** Controlled dev-verification failure without credential-bearing provider details. */
 class VerificationError extends Error {}
 
-/** Fail with a source-defined classification, never a provider response. */
+/** Fail with a source-defined classification, never a provider response.
+ * @param condition - Identity or execution guard that must hold.
+ * @param code - Controlled failure classification safe for logs.
+ */
 function requireValue(condition, code) {
   if (!condition) throw new VerificationError(code);
 }
 
-/** Read a bounded JSON response without redirects, retries or payload logging. */
+/** Read a bounded JSON response without redirects, retries or payload logging.
+ * @param fetcher - Injectable read-only transport.
+ * @param url - Fixed Vercel metadata endpoint for the selected dev project.
+ * @param token - Provider credential retained only in the authorization header.
+ * @returns Parsed metadata, rejecting failed or oversized responses.
+ */
 async function readMetadata(fetcher, url, token) {
   const response = await fetcher(url, {
     method: "GET",
@@ -43,7 +51,11 @@ async function readMetadata(fetcher, url, token) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-/** Inspect only the exact configured dev project, never other projects or runtime secrets. */
+/** Inspect only the exact configured dev project, never other projects or runtime secrets.
+ * @param env - Dev project identities and manual-main execution context.
+ * @param fetcher - Injectable read-only transport.
+ * @returns Sanitized identity observations, not deployment certification.
+ */
 export async function verifyDev(env, fetcher = globalThis.fetch) {
   requireValue(
     env.GITHUB_EVENT_NAME === "workflow_dispatch" &&

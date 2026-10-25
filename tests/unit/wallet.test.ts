@@ -67,7 +67,7 @@ afterEach(() => {
 it.each(["100000000", "9007199254740993"])(
   "builds exactly one transfer of %s lamports and one signer-bound memo",
   async (lamports) => {
-    const send = vi.fn(async (transaction: VersionedTransaction) => {
+    const send = vi.fn((transaction: VersionedTransaction) => {
       const wire = transaction.serialize();
       expect(wire).toBeInstanceOf(Uint8Array);
       const decoded = VersionedTransaction.deserialize(wire);
@@ -94,13 +94,13 @@ it.each(["100000000", "9007199254740993"])(
         payer.toBase58(),
       );
       expect(tx.instructions[1].keys[0].isSigner).toBe(true);
-      return { signature: "1".repeat(64) };
+      return Promise.resolve({ signature: "1".repeat(64) });
     });
     window.phantom = {
       solana: {
         isPhantom: true,
         /** Return the connected fixture payer. */
-        connect: async () => ({ publicKey: payer }),
+        connect: vi.fn().mockResolvedValue({ publicKey: payer }),
         signAndSendTransaction: send,
       },
     };
@@ -117,17 +117,17 @@ it("does not submit on the wrong network or after expiry", async () => {
     solana: {
       isPhantom: true,
       /** Return the connected fixture payer. */
-      connect: async () => ({ publicKey: payer }),
+      connect: vi.fn().mockResolvedValue({ publicKey: payer }),
       signAndSendTransaction: send,
     },
   };
-  vi.mocked(Connection.prototype.getGenesisHash).mockResolvedValue(
+  vi.spyOn(Connection.prototype, "getGenesisHash").mockResolvedValue(
     "mainnet" as GenesisHash,
   );
   await expect(sendPayment(payment, token)).rejects.toThrow(
     "not Solana Devnet",
   );
-  vi.mocked(Connection.prototype.getGenesisHash).mockResolvedValue(
+  vi.spyOn(Connection.prototype, "getGenesisHash").mockResolvedValue(
     "EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as GenesisHash,
   );
   await expect(sendPayment(payment, token)).rejects.toThrow(
@@ -145,7 +145,7 @@ it("distinguishes explicit rejection from uncertain submission", async () => {
     solana: {
       isPhantom: true,
       /** Return the connected fixture payer. */
-      connect: async () => ({ publicKey: payer }),
+      connect: vi.fn().mockResolvedValue({ publicKey: payer }),
       signAndSendTransaction: send,
     },
   };
@@ -161,9 +161,9 @@ it("keeps submission uncertain if the wallet returns no usable signature", async
     solana: {
       isPhantom: true,
       /** Return the connected fixture payer. */
-      connect: async () => ({ publicKey: payer }),
+      connect: vi.fn().mockResolvedValue({ publicKey: payer }),
       /** Return a malformed signature to exercise uncertain-submission protection. */
-      signAndSendTransaction: async () => ({ signature: "" }),
+      signAndSendTransaction: vi.fn().mockResolvedValue({ signature: "" }),
     },
   };
   await expect(sendPayment(payment, token)).rejects.toBeInstanceOf(
@@ -190,7 +190,7 @@ it.each([
       solana: {
         isPhantom: true,
         /** Return the connected fixture payer. */
-        connect: async () => ({ publicKey: payer }),
+        connect: vi.fn().mockResolvedValue({ publicKey: payer }),
         signAndSendTransaction: vi.fn().mockRejectedValue({
           code,
           message: "secret-provider-payload",
@@ -217,10 +217,10 @@ it("rejects arbitrary diagnostic strings restored from storage", () => {
 });
 
 it("authenticates only to the configured gateway, ignoring provider URL data", async () => {
-  vi.mocked(Connection.prototype.getGenesisHash).mockRestore();
-  vi.mocked(Connection.prototype.getLatestBlockhash).mockRestore();
+  vi.spyOn(Connection.prototype, "getGenesisHash").mockRestore();
+  vi.spyOn(Connection.prototype, "getLatestBlockhash").mockRestore();
   const methods: string[] = [];
-  const fetchMock = vi.fn(async (url, init: RequestInit) => {
+  const fetchMock = vi.fn((url: string, init: RequestInit) => {
     expect(String(url)).toBe(
       `${import.meta.env.VITE_API_ORIGIN ?? "http://localhost:8787"}/v1/checkout/fixture/rpc`,
     );
@@ -230,29 +230,36 @@ it("authenticates only to the configured gateway, ignoring provider URL data", a
     expect(init.redirect).toBe("error");
     expect(init.credentials).toBe("omit");
     expect(init.signal).toBeInstanceOf(AbortSignal);
-    const body = JSON.parse(String(init.body));
+    expect(typeof init.body).toBe("string");
+    const body = JSON.parse(init.body as string) as {
+      method: string;
+      id: number;
+      params: unknown[];
+    };
     methods.push(body.method);
     if (body.method === "getLatestBlockhash")
       expect(body.params).toEqual([{ commitment: "finalized" }]);
-    return Response.json({
-      jsonrpc: "2.0",
-      id: body.id,
-      result:
-        body.method === "getGenesisHash"
-          ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
-          : {
-              context: { slot: 1 },
-              value: { blockhash: "1".repeat(32), lastValidBlockHeight: 100 },
-            },
-    });
+    return Promise.resolve(
+      Response.json({
+        jsonrpc: "2.0",
+        id: body.id,
+        result:
+          body.method === "getGenesisHash"
+            ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+            : {
+                context: { slot: 1 },
+                value: { blockhash: "1".repeat(32), lastValidBlockHeight: 100 },
+              },
+      }),
+    );
   });
   vi.stubGlobal("fetch", fetchMock);
-  const send = vi.fn(async () => ({ signature: "1".repeat(64) }));
+  const send = vi.fn().mockResolvedValue({ signature: "1".repeat(64) });
   window.phantom = {
     solana: {
       isPhantom: true,
       /** Return the connected fixture payer. */
-      connect: async () => ({ publicKey: payer }),
+      connect: vi.fn().mockResolvedValue({ publicKey: payer }),
       signAndSendTransaction: send,
     },
   };
@@ -269,8 +276,10 @@ it("authenticates only to the configured gateway, ignoring provider URL data", a
 });
 
 it("does not retry rate-limited RPC preparation or open the wallet", async () => {
-  vi.mocked(Connection.prototype.getGenesisHash).mockRestore();
-  const fetchMock = vi.fn(async () => new Response("Limited", { status: 429 }));
+  vi.spyOn(Connection.prototype, "getGenesisHash").mockRestore();
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValue(new Response("Limited", { status: 429 }));
   vi.stubGlobal("fetch", fetchMock);
   const connect = vi.fn();
   const send = vi.fn();
@@ -291,10 +300,12 @@ it("does not submit if payment expires during wallet connection", async () => {
   window.phantom = {
     solana: {
       isPhantom: true,
-      /** Raise a controlled failure before wallet submission. */
-      connect: async () => {
+      /** Expire the quote before wallet submission.
+       * @returns The fixture connection after advancing the expiry state.
+       */
+      connect: () => {
         expiring.expiresAt = Date.now() - 1;
-        return { publicKey: payer };
+        return Promise.resolve({ publicKey: payer });
       },
       signAndSendTransaction: send,
     },
@@ -330,7 +341,7 @@ it.each([
       solana: {
         isPhantom: true,
         /** Return the connected fixture payer. */
-        connect: async () => ({ publicKey: payer }),
+        connect: vi.fn().mockResolvedValue({ publicKey: payer }),
         signAndSendTransaction: send,
         request,
       },
@@ -357,19 +368,20 @@ it("uses nested message hints and records elapsed time without proving blockhash
     .mockReturnValueOnce(1000)
     .mockReturnValueOnce(3500)
     .mockReturnValue(128500);
-  const send = vi.fn(async () => {
+  const send = vi.fn(() => {
     vi.spyOn(Date, "now").mockReturnValue(payment.expiresAt + 1);
-    throw {
-      code: -32603,
-      message: "Internal error",
-      data: { message: "Blockhash not found" },
-    };
+    return Promise.reject(
+      Object.assign(new Error("Internal error"), {
+        code: -32603,
+        data: { message: "Blockhash not found" },
+      }),
+    );
   });
   window.phantom = {
     solana: {
       isPhantom: true,
       /** Return the connected fixture payer. */
-      connect: async () => ({ publicKey: payer }),
+      connect: vi.fn().mockResolvedValue({ publicKey: payer }),
       signAndSendTransaction: send,
     },
   };
@@ -391,7 +403,9 @@ it.each(["production", "local", "", undefined])(
     const message = vi.fn(() => "secret provider message");
     const failure = {
       code: -32603,
-      /** Track forbidden raw-message inspection outside the dev-only diagnostic path. */
+      /** Track forbidden raw-message inspection outside the dev-only diagnostic path.
+       * @returns The private message whose access is monitored by this test.
+       */
       get message() {
         return message();
       },
@@ -400,7 +414,7 @@ it.each(["production", "local", "", undefined])(
       solana: {
         isPhantom: true,
         /** Return the connected fixture payer. */
-        connect: async () => ({ publicKey: payer }),
+        connect: vi.fn().mockResolvedValue({ publicKey: payer }),
         signAndSendTransaction: vi.fn().mockRejectedValue(failure),
       },
     };
@@ -425,7 +439,7 @@ it("keeps unexpected message access failures uncertain and never retries", async
     solana: {
       isPhantom: true,
       /** Return the connected fixture payer. */
-      connect: async () => ({ publicKey: payer }),
+      connect: vi.fn().mockResolvedValue({ publicKey: payer }),
       signAndSendTransaction: send,
     },
   };
@@ -441,9 +455,9 @@ it("classifies an invalid dev wallet response without treating it as not submitt
     solana: {
       isPhantom: true,
       /** Return the connected fixture payer. */
-      connect: async () => ({ publicKey: payer }),
+      connect: vi.fn().mockResolvedValue({ publicKey: payer }),
       /** Return a malformed signature to exercise uncertain-submission protection. */
-      signAndSendTransaction: async () => ({ signature: "" }),
+      signAndSendTransaction: vi.fn().mockResolvedValue({ signature: "" }),
     },
   };
   await expect(sendPayment(payment, token)).rejects.toMatchObject({

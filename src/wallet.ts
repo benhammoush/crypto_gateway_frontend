@@ -14,20 +14,31 @@ import {
 import { Payment } from "./types";
 import { checkoutRpcUrl } from "./api";
 
+/** Serialized-message request supported by the optional wallet capability. */
+interface WalletRequest {
+  method: "signAndSendTransaction";
+  params: { message: string };
+}
+
 /** Injected wallet capabilities accepted at the browser boundary. */
 export interface PhantomProvider {
   isPhantom?: boolean;
-  /** Ask the user to connect and expose the approved public key. */
+  /** Ask the user to connect and expose the approved public key.
+   * @returns The wallet-approved public key.
+   */
   connect(): Promise<{ publicKey: PublicKey }>;
-  /** Approve and submit the transaction; a returned signature is not settlement evidence. */
+  /** Approve and submit the transaction; a returned signature is not settlement evidence.
+   * @param transaction - Locally prepared Devnet transfer and signer-bound memo.
+   * @returns The wallet's candidate transaction signature.
+   */
   signAndSendTransaction(
     transaction: VersionedTransaction,
   ): Promise<{ signature: string }>;
-  /** Optional serialized-message submission capability exposed by the injected wallet. */
-  request?(request: {
-    method: "signAndSendTransaction";
-    params: { message: string };
-  }): Promise<{ signature: string }>;
+  /** Optional serialized-message submission capability exposed by the injected wallet.
+   * @param request - Serialized transaction request understood by the wallet.
+   * @returns The wallet's candidate transaction signature.
+   */
+  request?(request: WalletRequest): Promise<{ signature: string }>;
 }
 
 declare global {
@@ -55,7 +66,10 @@ const WALLET_DIAGNOSTICS = [
 /** Allowlisted diagnostic code safe to retain in checkout recovery state. */
 type WalletDiagnostic = (typeof WALLET_DIAGNOSTICS)[number];
 
-/** Accept only fixed diagnostic labels, including when restoring tab storage. */
+/** Accept only fixed diagnostic labels, including when restoring tab storage.
+ * @param value - Untrusted diagnostic value.
+ * @returns An allowlisted label, or undefined for unknown values.
+ */
 export function walletDiagnostic(value: unknown): WalletDiagnostic | undefined {
   return WALLET_DIAGNOSTICS.find((code) => code === value);
 }
@@ -78,7 +92,10 @@ interface WalletFailureDetails {
   quoteExpired: boolean;
 }
 
-/** Rebuild only fixed fields, including when restoring untrusted tab storage. */
+/** Rebuild only fixed fields, including when restoring untrusted tab storage.
+ * @param value - Untrusted object or serialized recovery state.
+ * @returns Validated, bounded fields, or undefined when validation fails.
+ */
 export function walletFailureDetails(
   value: unknown,
 ): WalletFailureDetails | undefined {
@@ -114,7 +131,10 @@ export function walletFailureDetails(
   }
 }
 
-/** Message text is inspected locally for hints, never retained or displayed. */
+/** Message text is inspected locally for hints, never retained or displayed.
+ * @param error - Untrusted wallet failure, possibly with inaccessible properties.
+ * @returns An allowlisted reason without raw wallet text.
+ */
 function walletFailureReason(error: unknown): WalletFailureDetails["reason"] {
   if (
     error instanceof WalletSubmissionUncertain &&
@@ -169,7 +189,12 @@ function walletFailureReason(error: unknown): WalletFailureDetails["reason"] {
 
 /** Wallet submission may have occurred; callers must not assume a second payment is safe. */
 export class WalletSubmissionUncertain extends Error {
-  /** Retain the uncertainty classification and optional safe diagnostics. */
+  /** Retain the uncertainty classification and optional safe diagnostics.
+   * @param message - Public explanation of the uncertain submission.
+   * @param options - Original cause for local error handling.
+   * @param diagnosticCode - Allowlisted wallet diagnostic label.
+   * @param details - Optional bounded timing and reason fields.
+   */
   constructor(
     message: string,
     options?: ErrorOptions,
@@ -182,7 +207,11 @@ export class WalletSubmissionUncertain extends Error {
 /** Failure classified as occurring without a submitted payment from this request. */
 export class WalletNotSubmitted extends Error {}
 
-/** Build transfer + signer-bound memo; the gateway also validates wallet-added compute settings. */
+/** Build transfer + signer-bound memo; the gateway also validates wallet-added compute settings.
+ * @param payment - Backend-issued payment quote with integer lamports.
+ * @param token - Checkout capability authorizing the scoped gateway RPC.
+ * @returns The wallet's candidate signature, never proof of settlement.
+ */
 export async function sendPayment(
   payment: Payment,
   token: string,
@@ -199,15 +228,23 @@ export async function sendPayment(
       commitment: "finalized",
       httpHeaders: { authorization: `Bearer ${token}` },
       disableRetryOnRateLimit: true,
-      /** Preserve the explicit-finality gateway contract and bound each browser RPC request. */
+      /** Preserve the explicit-finality gateway contract and bound each browser RPC request.
+       * @param url - Gateway RPC URL selected by the connection.
+       * @param init - SDK request options before commitment normalization.
+       * @returns The bounded RPC response without redirects or browser credentials.
+       */
       fetch: (url, init) => {
         // Kit elides Solana's finalized default; the gateway contract requires
         // that commitment explicitly, even when it is the network default.
         let body = init?.body;
         if (typeof body === "string") {
-          const rpc = JSON.parse(body);
+          const rpc: unknown = JSON.parse(body);
           if (
+            rpc !== null &&
+            typeof rpc === "object" &&
+            "method" in rpc &&
             rpc.method === "getLatestBlockhash" &&
+            "params" in rpc &&
             Array.isArray(rpc.params) &&
             rpc.params.length === 0
           ) {
@@ -265,7 +302,7 @@ export async function sendPayment(
   }
   const walletStartedAt = performance.now();
   try {
-    const result = await wallet!.signAndSendTransaction(walletTransaction);
+    const result = await wallet.signAndSendTransaction(walletTransaction);
     if (
       typeof result?.signature !== "string" ||
       !/^[1-9A-HJ-NP-Za-km-z]{64,100}$/.test(result.signature)

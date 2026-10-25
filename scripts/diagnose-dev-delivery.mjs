@@ -9,7 +9,10 @@ import { pathToFileURL } from "node:url";
 /** Controlled read-only diagnostic failure without raw provider details. */
 class DiagnosticError extends Error {}
 
-/** Read bounded text, cancelling unread data without reflecting its contents. */
+/** Read bounded text, cancelling unread data without reflecting its contents.
+ * @param response - Selected metadata or public application response.
+ * @returns At most 64 KiB of response text; rejects oversized bodies.
+ */
 async function text(response) {
   const reader = response.body.getReader();
   const chunks = [];
@@ -28,7 +31,11 @@ async function text(response) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/** Read fixed Vercel metadata and unauthenticated application endpoints for the configured dev project only. */
+/** Read fixed Vercel metadata and unauthenticated application endpoints for the configured dev project only.
+ * @param env - Explicit dev identities and diagnostic execution context.
+ * @param fetcher - Injectable read-only transport.
+ * @returns Sanitized identity and endpoint observations, not acceptance evidence.
+ */
 export async function diagnoseDevDelivery(env, fetcher = globalThis.fetch) {
   assert.equal(env.GITHUB_ACTIONS, "true");
   assert.equal(env.GITHUB_EVENT_NAME, "workflow_dispatch");
@@ -40,7 +47,10 @@ export async function diagnoseDevDelivery(env, fetcher = globalThis.fetch) {
   assert.ok(env.VERCEL_TOKEN);
   assert.equal(env.TARGET_ORIGIN, "https://crypto-gateway-dev.vercel.app");
 
-  /** Never send the provider credential outside its fixed API origin. */
+  /** Never send the provider credential outside its fixed API origin.
+   * @param path - Fixed project or deployment metadata path.
+   * @returns Parsed metadata, rejecting failed or oversized responses.
+   */
   async function metadata(path) {
     const response = await fetcher(
       `https://api.vercel.com${path}?teamId=${env.VERCEL_ORG_ID}`,

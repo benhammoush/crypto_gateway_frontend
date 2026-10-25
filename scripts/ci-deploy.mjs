@@ -49,7 +49,9 @@ await publishWeb(env, {
       { src: "/checkout/[^/]+", dest: "/index.html" },
     ],
   },
-  /** Read only the public status hint; never create a payment or reveal runtime configuration. */
+  /** Read only the public status hint; never create a payment or reveal runtime configuration.
+   * @param fetcher - Bounded transport supplied by the release controller.
+   */
   smoke: async (fetcher) => {
     const response = await fetcher(`${env.TARGET_ORIGIN}/api/demo/status`, {
       redirect: "error",

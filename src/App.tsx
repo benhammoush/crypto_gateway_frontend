@@ -17,7 +17,15 @@ import { readSession, removeSession, saveSession } from "./storage";
 
 const MAX_POLLS = 180;
 
-/** Render the merchant example and create a checkout through the server-side adapter. */
+/** Payment identity and tab-scoped capability needed to render checkout. */
+interface CheckoutProps {
+  id: string;
+  token: string;
+}
+
+/** Render the merchant example and create a checkout through the server-side adapter.
+ * @returns The amount form and its availability or failure state.
+ */
 function Demo() {
   const [amount, setAmount] = useState("10.00");
   const [busy, setBusy] = useState(false);
@@ -50,7 +58,9 @@ function Demo() {
     return () => controller.abort();
   }, []);
 
-  /** Create the payment from validated form input and navigate to its checkout. */
+  /** Create the payment from validated form input and navigate to its checkout.
+   * @param event - Submission event whose default navigation must be prevented.
+   */
   async function pay(event: FormEvent) {
     event.preventDefault();
     if (busy || availability !== "enabled") return;
@@ -101,7 +111,7 @@ function Demo() {
         Enter a USD amount. The gateway locks a SOL quote and verifies your
         transfer on-chain.
       </p>
-      <form onSubmit={pay}>
+      <form onSubmit={(event) => void pay(event)}>
         <label htmlFor="amount">Amount in USD</label>
         <div className="amount">
           <span>$</span>
@@ -143,8 +153,12 @@ function Demo() {
   );
 }
 
-/** Checkout state is server-authoritative; wallet messages never imply settlement. */
-export function Checkout({ id, token }: { id: string; token: string }) {
+/** Checkout state is server-authoritative; wallet messages never imply settlement.
+ * @param props - Payment identifier and the checkout capability retained for this tab.
+ * @returns Payment details, wallet controls and backend-confirmed progress.
+ */
+export function Checkout(props: CheckoutProps) {
+  const { id, token } = props;
   const [payment, setPayment] = useState<Payment>();
   const [progress, setProgress] = useState<Progress>();
   const [message, setMessage] = useState("");
@@ -427,7 +441,9 @@ export function Checkout({ id, token }: { id: string; token: string }) {
   );
 }
 
-/** Select the merchant example or the capability-bearing checkout route. */
+/** Select the merchant example or the capability-bearing checkout route.
+ * @returns The application shell with the selected checkout or merchant view.
+ */
 export default function App() {
   const match = /^\/checkout\/([a-f0-9-]{36})$/.exec(location.pathname);
   let token = "";

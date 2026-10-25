@@ -12,7 +12,9 @@ import {
   currentTarget,
 } from "../../scripts/check-delivery.mjs";
 
-/** Create synthetic environment-scoped release configuration. */
+/** Create synthetic environment-scoped release configuration.
+ * @returns Isolated dev identities and nonfunctional fixture credentials.
+ */
 function environment() {
   return {
     DEPLOY_ENABLED: "true",
@@ -84,7 +86,9 @@ it("compares the exact backend schema without a moving-ref fallback", async () =
     .digest("hex");
   const fetch = vi.fn(async () => ({
     ok: true,
-    /** Return controlled project-schema evidence. */
+    /** Return controlled project-schema evidence.
+     * @returns The synthetic backend schema.
+     */
     json: async () => schema,
   }));
   vi.stubGlobal("fetch", fetch);
@@ -120,7 +124,9 @@ it("reads only the selected target project and retains its prior identity", asyn
   };
   const fetch = vi.fn(async () => ({
     ok: true,
-    /** Return the controlled project identity response. */
+    /** Return the controlled project identity response.
+     * @returns The synthetic provider project metadata.
+     */
     json: async () => project,
   }));
   vi.stubGlobal("fetch", fetch);
@@ -148,7 +154,9 @@ it("allows production bootstrap with an explicit no-predecessor record, not reco
   };
   const fetch = vi.fn(async () => ({
     ok: true,
-    /** Return the controlled project identity response. */
+    /** Return the controlled project identity response.
+     * @returns The synthetic provider project metadata.
+     */
     json: async () => project,
   }));
   vi.stubGlobal("fetch", fetch);

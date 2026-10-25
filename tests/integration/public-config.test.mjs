@@ -15,7 +15,9 @@ const directories = [];
 const metadataKey = "VITE_VERCEL_OBSERVABILITY_CLIENT_CONFIG";
 const app = { VITE_APP_ENV: "dev", VITE_API_ORIGIN: "https://api.example.com" };
 
-/** Isolate env-file loading and generated artifacts from real project configuration. */
+/** Isolate env-file loading and generated artifacts from real project configuration.
+ * @returns A fresh temporary directory registered for cleanup.
+ */
 function directory() {
   const root = join(tmpdir(), "opencode");
   mkdirSync(root, { recursive: true });
@@ -24,7 +26,11 @@ function directory() {
   return path;
 }
 
-/** Execute the existing guard with synthetic configuration, never provider credentials. */
+/** Execute the existing guard with synthetic configuration, never provider credentials.
+ * @param extra - Synthetic public environment overrides.
+ * @param dotenv - Optional production env-file content for the isolated fixture.
+ * @returns Captured exit status and output from the configuration guard.
+ */
 function check(extra = {}, dotenv) {
   const cwd = directory();
   if (dotenv) writeFileSync(join(cwd, ".env.production"), dotenv);
