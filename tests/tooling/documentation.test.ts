@@ -145,6 +145,21 @@ it("requires parameter and return tags, not only descriptions of supplied tags",
   );
 });
 
+it("requires return tags on method signatures without requiring them on void methods", async () => {
+  expect(
+    await errors(
+      header +
+        "/** Fixture contract. */ interface Fixture { /** Read identity. */ read(): string; }",
+    ),
+  ).toContain("jsdoc/require-returns");
+  expect(
+    await errors(
+      header +
+        "/** Fixture contract. */ interface Fixture { /** Clear identity. */ clear(): void; }",
+    ),
+  ).toEqual([]);
+});
+
 it("rejects malformed TSDoc and duplicated TypeScript types", async () => {
   expect(
     await errors(
