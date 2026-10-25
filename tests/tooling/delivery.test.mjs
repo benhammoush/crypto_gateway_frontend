@@ -99,14 +99,17 @@ it('compares the exact backend schema without a moving-ref fallback', async () =
   );
 });
 it('gates delivery behind the existing quality/browser jobs and native target environment', () => {
-  const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
+  const workflow = readFileSync(
+    '.github/workflows/verify-and-deploy-dev.yml',
+    'utf8',
+  );
   expect(workflow).toContain('needs: verify');
   expect(workflow).toContain('environment: dev');
   expect(workflow).toMatch(
     /ci-cd-workflows\/\.github\/workflows\/deploy-web.yml@[a-f0-9]{40}/,
   );
   const production = readFileSync(
-    '.github/workflows/deploy-production.yml',
+    '.github/workflows/verify-and-deploy-prod.yml',
     'utf8',
   );
   expect(production).toContain('needs: verify_release');
