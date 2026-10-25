@@ -36,3 +36,5 @@ authorize checkout requests, and provider keys remain server-side.
 
 See [the backend API contract](https://github.com/benhammoush/crypto_gateway_backend/blob/main/openapi.json)
 for integration details.
+
+The [security limitations](docs/SECURITY.md) describe the checkout's trust boundaries.

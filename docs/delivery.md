@@ -171,7 +171,7 @@ and records `productionBootstrap=true` with `previous=null` before mutation, but
 rejects malformed existing target identities or unavailable provider inspection.
 This is not proof of empty provider history, dev acceptance or rehearsal; those
 remain owner checks before native approval. The backend runbook's
-[matching policy](https://github.com/benhammoush/crypto_gateway_backend/blob/main/DELIVERY.md#approved-first-production-policy)
+[matching policy](https://github.com/benhammoush/crypto_gateway_backend/blob/main/docs/delivery.md#approved-first-production-policy)
 also applies to the pair; each repository retains its own dispatch and approval.
 
 Production manual dispatch, native approval, isolation and schema/provenance
