@@ -24,6 +24,9 @@ transfer in Phantom.
 
 ## Boundaries and integration
 
+Shared visual values and reusable presentation live in the
+[checkout design system](src/design-system/README.md).
+
 Phantom signs and submits the payment directly to Solana. The backend independently
 verifies settlement; checkout shows **Payment verified** only after backend
 confirmation. An uncertain wallet submission never triggers an automatic second
