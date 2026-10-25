@@ -1,0 +1,16 @@
+.notice {
+  border: 1px solid var(--color-warning-border);
+  padding: var(--space-sm);
+  font-size: var(--font-size-small);
+  line-height: 1.7;
+  border-radius: var(--radius-control);
+  color: var(--color-warning-text);
+}
+.notice.error {
+  border-color: var(--color-error-border);
+  color: var(--color-error-text);
+}
+.notice.success {
+  border-color: var(--color-success-border);
+  color: var(--color-accent);
+}

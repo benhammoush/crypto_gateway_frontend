@@ -1,0 +1,33 @@
+/* Canonical checkout visual decisions; product geometry stays in style.css. */
+:root {
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+  --color-text: #e9ede7;
+  --color-background: #101510;
+  --color-surface: #171e16;
+  --color-border: #303a2d;
+  --color-border-strong: #46543d;
+  --color-accent: #c7f58a;
+  --color-accent-hover: #d6ffa4;
+  --color-on-accent: #17230e;
+  --color-text-secondary: #a9b3a4;
+  --color-text-muted: #94a18a;
+  --color-secondary-hover: #263021;
+  --color-warning-border: #78673a;
+  --color-warning-text: #e6d6a2;
+  --color-error-border: #986c60;
+  --color-error-text: #f1beb0;
+  --color-success-border: #6b8a4a;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --font-size-caption: 10px;
+  --font-size-small: 12px;
+  --font-size-body: 14px;
+  --radius-sm: 4px;
+  --radius-control: 6px;
+  --radius-card: 12px;
+  --shadow-card: 0 24px 90px #0003;
+}

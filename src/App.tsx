@@ -14,6 +14,7 @@ import {
   WalletSubmissionUncertain,
 } from './wallet';
 import { readSession, removeSession, saveSession } from './storage';
+import { Notice } from './design-system';
 
 const MAX_POLLS = 180;
 
@@ -132,18 +133,18 @@ function Demo() {
         </button>
       </form>
       {availability !== 'enabled' && (
-        <p className="notice" role="status">
+        <Notice role="status">
           {availability === 'checking'
             ? 'Checking demo availability…'
             : availability === 'disabled'
               ? 'Demo payments are disabled.'
               : 'Demo availability could not be checked. Payments remain unavailable; reload to try again.'}
-        </p>
+        </Notice>
       )}
       {error && (
-        <p className="notice error" role="alert">
+        <Notice tone="error" role="alert">
           {error}
-        </p>
+        </Notice>
       )}
       <p className="footnote">
         This demo lets you choose the amount. Real applications calculate what
@@ -377,23 +378,19 @@ export function Checkout(props: CheckoutProps) {
         ))}
       </ol>
       {progress === 'Payment verified' && (
-        <p className="notice success">
+        <Notice tone="success">
           Verified testnet transfer. No real funds were used.
-        </p>
+        </Notice>
       )}
-      {message && (
-        <p className="notice" role="alert">
-          {message}
-        </p>
-      )}
+      {message && <Notice role="alert">{message}</Notice>}
       {uncertain && !busy && !message && progress !== 'Payment verified' && (
-        <p className="notice" role="alert">
+        <Notice role="alert">
           Wallet submission is uncertain. Check wallet activity and contact the
           merchant before paying again.
-        </p>
+        </Notice>
       )}
       {uncertain && !busy && progress !== 'Payment verified' && (
-        <p className="notice" role="status">
+        <Notice role="status">
           Wallet diagnostic: <code>{diagnostic ?? 'UNAVAILABLE'}</code>. This
           does not confirm whether a transfer was submitted.
           <br />
@@ -421,7 +418,7 @@ export function Checkout(props: CheckoutProps) {
               prove submission or the cause.
             </>
           )}
-        </p>
+        </Notice>
       )}
       {!busy && progress !== 'Payment verified' && (
         <button
