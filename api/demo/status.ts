@@ -3,4 +3,4 @@
  * @packageDocumentation
  */
 
-export { merchantHandler as default } from "../../server/merchant.js";
+export { merchantHandler as default } from '../../server/merchant.js';

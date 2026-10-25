@@ -3,9 +3,9 @@
  * @packageDocumentation
  */
 
-import { createServer } from "node:http";
-import { merchantHandler } from "./merchant";
+import { createServer } from 'node:http';
+import { merchantHandler } from './merchant';
 
 createServer((req, res) => {
   void merchantHandler(req, res);
-}).listen(3001, "127.0.0.1");
+}).listen(3001, '127.0.0.1');

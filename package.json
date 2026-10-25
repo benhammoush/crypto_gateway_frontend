@@ -3,11 +3,13 @@
   "version": "0.2.5",
   "private": true,
   "type": "module",
+  "packageManager": "npm@11.19.0",
   "engines": {
-    "node": "24.x"
+    "node": "24.x",
+    "npm": "^10.9.9 || ^11.19.0"
   },
   "scripts": {
-    "ci:quality": "npm run check && npm run audit:dependencies",
+    "ci:quality": "npm run check",
     "audit:dependencies": "npm audit && npm audit --omit=dev",
     "ci:browser": "playwright test",
     "ci:prepare": "node scripts/ci-prepare.mjs",
@@ -16,6 +18,7 @@
     "dev": "vite --host localhost --port 5173 --strictPort",
     "dev:merchant": "node --env-file-if-exists=.env.server.local --import tsx server/local.ts",
     "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -23,7 +26,7 @@
     "contract:generate": "node scripts/generate-contract.mjs",
     "contract:check": "node scripts/generate-contract.mjs --check",
     "build": "node scripts/check-config.mjs && tsc --noEmit && vite build",
-    "check": "npm run lint && npm run format:check && npm run contract:check && npm run typecheck && npm test && npm run build"
+    "check": "npm run lint && npm run format:check && npm run contract:check && npm run typecheck && npm test && npm run audit:dependencies && npm run build"
   },
   "dependencies": {
     "@solana/web3.js": "3.1.0",

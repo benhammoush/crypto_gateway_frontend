@@ -3,27 +3,27 @@
  * @packageDocumentation
  */
 
-import { expect, test } from "@playwright/test";
-import { loadEnv } from "vite";
+import { expect, test } from '@playwright/test';
+import { loadEnv } from 'vite';
 import {
   SystemInstruction,
   Transaction,
   VersionedTransaction,
-} from "@solana/web3.js";
+} from '@solana/web3.js';
 
 const diagnosticsEnabled =
-  loadEnv("development", process.cwd(), "VITE_").VITE_APP_ENV === "dev";
+  loadEnv('development', process.cwd(), 'VITE_').VITE_APP_ENV === 'dev';
 
-test("wallet failure hints stay dev-only and cannot trigger a second submission", async ({
+test('wallet failure hints stay dev-only and cannot trigger a second submission', async ({
   page,
 }) => {
-  const id = "33333333-3333-4333-8333-333333333333";
-  const secret = "fixture-secret-must-not-render";
+  const id = '33333333-3333-4333-8333-333333333333';
+  const secret = 'fixture-secret-must-not-render';
   const headers = {
-    "access-control-allow-origin": test.info().project.use.baseURL!,
-    "access-control-allow-headers":
-      "authorization, content-type, solana-client",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
+    'access-control-allow-origin': test.info().project.use.baseURL!,
+    'access-control-allow-headers':
+      'authorization, content-type, solana-client',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
   };
   await page.addInitScript((secret) => {
     Object.assign(window, {
@@ -40,7 +40,7 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
                 /** Return the fixture public key in wallet encoding.
                  * @returns The base58 fixture payer.
                  */
-                toBase58: () => "1".repeat(32),
+                toBase58: () => '1'.repeat(32),
               },
             }),
           /** Count a controlled submission and reject with a wallet RPC failure.
@@ -64,10 +64,10 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
       },
     });
   }, secret);
-  await page.route("**/v1/checkout/**", async (route) => {
-    if (route.request().method() === "OPTIONS") {
-      await route.fulfill({ headers, body: "" });
-    } else if (route.request().url().endsWith("/rpc")) {
+  await page.route('**/v1/checkout/**', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers, body: '' });
+    } else if (route.request().url().endsWith('/rpc')) {
       const body = route.request().postDataJSON() as {
         id: number;
         method: string;
@@ -75,35 +75,35 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
       await route.fulfill({
         headers,
         json: {
-          jsonrpc: "2.0",
+          jsonrpc: '2.0',
           id: body.id,
           result:
-            body.method === "getGenesisHash"
-              ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+            body.method === 'getGenesisHash'
+              ? 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG'
               : {
                   context: { slot: 1 },
                   value: {
-                    blockhash: "1".repeat(32),
+                    blockhash: '1'.repeat(32),
                     lastValidBlockHeight: 100,
                   },
                 },
         },
       });
     } else {
-      expect(route.request().method()).toBe("GET");
+      expect(route.request().method()).toBe('GET');
       await route.fulfill({
         headers,
         json: {
           data: {
             id,
             usdCents: 1,
-            displaySol: "0.000095794",
-            lamports: "95794",
-            status: "pending",
-            recipient: "So11111111111111111111111111111111111111112",
+            displaySol: '0.000095794',
+            lamports: '95794',
+            status: 'pending',
+            recipient: 'So11111111111111111111111111111111111111112',
             expiresAt: Date.now() + 900_000,
             memo: `crypto_gateway:${id}`,
-            network: "solana-devnet",
+            network: 'solana-devnet',
             attempts: [],
             signature: null,
           },
@@ -111,36 +111,36 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
       });
     }
   });
-  await page.goto(`/checkout/${id}#${"a".repeat(64)}`);
-  await page.getByRole("button", { name: "Pay with Phantom" }).click();
-  await expect(page.getByRole("status")).toContainText("WALLET_RPC_-32603");
+  await page.goto(`/checkout/${id}#${'a'.repeat(64)}`);
+  await page.getByRole('button', { name: 'Pay with Phantom' }).click();
+  await expect(page.getByRole('status')).toContainText('WALLET_RPC_-32603');
   if (diagnosticsEnabled) {
-    await expect(page.getByRole("status")).toContainText(
-      "Dev wallet hint: BLOCKHASH_EXPIRED_OR_MISSING",
+    await expect(page.getByRole('status')).toContainText(
+      'Dev wallet hint: BLOCKHASH_EXPIRED_OR_MISSING',
     );
-    await expect(page.getByRole("status")).toContainText(
-      "Time since blockhash fetched:",
+    await expect(page.getByRole('status')).toContainText(
+      'Time since blockhash fetched:',
     );
     await page.setViewportSize({ width: 390, height: 1000 });
-    await expect(page.getByRole("status")).toBeVisible();
+    await expect(page.getByRole('status')).toBeVisible();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
     await page.screenshot({
-      path: test.info().outputPath("dev-wallet-diagnostic.png"),
+      path: test.info().outputPath('dev-wallet-diagnostic.png'),
       fullPage: true,
     });
   } else {
     await expect(
-      page.getByText("Dev wallet hint:", { exact: false }),
+      page.getByText('Dev wallet hint:', { exact: false }),
     ).toHaveCount(0);
   }
   await expect(page.getByText(secret, { exact: false })).toHaveCount(0);
-  await page.getByRole("button", { name: "Refresh status" }).click();
+  await page.getByRole('button', { name: 'Refresh status' }).click();
   await expect(
-    page.getByRole("button", { name: "Pay with Phantom" }),
+    page.getByRole('button', { name: 'Pay with Phantom' }),
   ).toHaveCount(0);
   expect(
     await page.evaluate(
@@ -153,39 +153,39 @@ test("wallet failure hints stay dev-only and cannot trigger a second submission"
       sessionStorage.getItem(`crypto_gateway:signature:${id}:walletFailure`),
     id,
   );
-  expect(stored ?? "").not.toContain(secret);
+  expect(stored ?? '').not.toContain(secret);
   if (!diagnosticsEnabled) expect(stored).toBeNull();
 });
 
-test("browser wallet flow verifies only after authoritative settlement", async ({
+test('browser wallet flow verifies only after authoritative settlement', async ({
   page,
 }) => {
-  const id = "22222222-2222-4222-8222-222222222222";
+  const id = '22222222-2222-4222-8222-222222222222';
   let submitted = false;
   let settled = false;
   const rpcMethods: string[] = [];
-  await page.exposeFunction("validateFixtureMessage", (wire: number[]) => {
+  await page.exposeFunction('validateFixtureMessage', (wire: number[]) => {
     const bytes = new Uint8Array(wire);
     const decoded = VersionedTransaction.deserialize(bytes);
-    expect(decoded.version).toBe("legacy");
+    expect(decoded.version).toBe('legacy');
     const transaction = Transaction.from(bytes);
     expect(transaction.instructions).toHaveLength(2);
     const transfer = SystemInstruction.decodeTransfer(
       transaction.instructions[0],
     );
     expect(transfer.lamports).toBe(100000000n);
-    expect(transfer.fromPubkey.toBase58()).toBe("1".repeat(32));
+    expect(transfer.fromPubkey.toBase58()).toBe('1'.repeat(32));
     expect(transfer.toPubkey.toBase58()).toBe(
-      "So11111111111111111111111111111111111111112",
+      'So11111111111111111111111111111111111111112',
     );
-    expect(transaction.feePayer?.toBase58()).toBe("1".repeat(32));
+    expect(transaction.feePayer?.toBase58()).toBe('1'.repeat(32));
     expect(decoded.message.header.numRequiredSignatures).toBe(1);
     const memo = transaction.instructions[1];
     expect(memo.programId.toBase58()).toBe(
-      "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+      'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
     );
     expect(new TextDecoder().decode(memo.data)).toBe(`crypto_gateway:${id}`);
-    expect(memo.keys[0].pubkey.toBase58()).toBe("1".repeat(32));
+    expect(memo.keys[0].pubkey.toBase58()).toBe('1'.repeat(32));
     expect(memo.keys[0].isSigner).toBe(true);
   });
   await page.addInitScript(() => {
@@ -208,7 +208,7 @@ test("browser wallet flow verifies only after authoritative settlement", async (
                       /** Return the fixture public key in wallet encoding.
                        * @returns The base58 fixture payer.
                        */
-                      toBase58: () => "11111111111111111111111111111111",
+                      toBase58: () => '11111111111111111111111111111111',
                     },
                   }),
               }),
@@ -218,11 +218,11 @@ test("browser wallet flow verifies only after authoritative settlement", async (
            * @returns The fixture signature after message validation succeeds.
            */
           signAndSendTransaction: async (
-            transaction: Pick<VersionedTransaction, "serialize">,
+            transaction: Pick<VersionedTransaction, 'serialize'>,
           ) => {
             const bytes = transaction.serialize();
             if (!(bytes instanceof Uint8Array))
-              throw new Error("Wallet serialization must be synchronous.");
+              throw new Error('Wallet serialization must be synchronous.');
             await (
               window as unknown as {
                 /** Check the serialized wallet message in the Node-side fixture.
@@ -232,21 +232,21 @@ test("browser wallet flow verifies only after authoritative settlement", async (
                 validateFixtureMessage(wire: number[]): Promise<void>;
               }
             ).validateFixtureMessage(Array.from(bytes));
-            return { signature: "1".repeat(64) };
+            return { signature: '1'.repeat(64) };
           },
         },
       },
     });
   });
   const headers = {
-    "access-control-allow-origin": test.info().project.use.baseURL!,
-    "access-control-allow-headers":
-      "authorization, content-type, solana-client",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
+    'access-control-allow-origin': test.info().project.use.baseURL!,
+    'access-control-allow-headers':
+      'authorization, content-type, solana-client',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
   };
-  await page.route("**/v1/checkout/**/rpc", async (route) => {
-    if (route.request().method() === "OPTIONS") {
-      await route.fulfill({ headers, body: "" });
+  await page.route('**/v1/checkout/**/rpc', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers, body: '' });
       return;
     }
     const body = route.request().postDataJSON() as {
@@ -255,65 +255,65 @@ test("browser wallet flow verifies only after authoritative settlement", async (
       id: number;
     };
     const method = body.method;
-    if (method === "getLatestBlockhash")
-      expect(body.params).toEqual([{ commitment: "finalized" }]);
+    if (method === 'getLatestBlockhash')
+      expect(body.params).toEqual([{ commitment: 'finalized' }]);
     expect(route.request().headers().authorization).toBe(
-      `Bearer ${"a".repeat(64)}`,
+      `Bearer ${'a'.repeat(64)}`,
     );
     rpcMethods.push(method);
     await route.fulfill({
       headers,
       json: {
-        jsonrpc: "2.0",
+        jsonrpc: '2.0',
         id: body.id,
         result:
-          method === "getGenesisHash"
-            ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+          method === 'getGenesisHash'
+            ? 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG'
             : {
                 context: { slot: 123 },
                 value: {
-                  blockhash: "11111111111111111111111111111111",
+                  blockhash: '11111111111111111111111111111111',
                   lastValidBlockHeight: 100,
                 },
               },
       },
     });
   });
-  await page.route("**/v1/checkout/**", async (route) => {
-    if (route.request().url().endsWith("/rpc")) return route.fallback();
-    if (route.request().method() === "OPTIONS") {
-      await route.fulfill({ headers, body: "" });
+  await page.route('**/v1/checkout/**', async (route) => {
+    if (route.request().url().endsWith('/rpc')) return route.fallback();
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers, body: '' });
       return;
     }
-    if (route.request().method() === "POST") submitted = true;
+    if (route.request().method() === 'POST') submitted = true;
     await route.fulfill({
       headers,
       json: {
         data: {
           id,
           usdCents: 1000,
-          displaySol: "0.100000000",
-          lamports: "100000000",
-          status: settled ? "settled" : submitted ? "verifying" : "pending",
-          recipient: "So11111111111111111111111111111111111111112",
+          displaySol: '0.100000000',
+          lamports: '100000000',
+          status: settled ? 'settled' : submitted ? 'verifying' : 'pending',
+          recipient: 'So11111111111111111111111111111111111111112',
           expiresAt: Date.now() + 900_000,
-          rpcUrl: "https://api.devnet.solana.com",
+          rpcUrl: 'https://api.devnet.solana.com',
           memo: `crypto_gateway:${id}`,
-          network: "solana-devnet",
+          network: 'solana-devnet',
           attempts: submitted
-            ? [{ signature: "1".repeat(64), state: "pending" }]
+            ? [{ signature: '1'.repeat(64), state: 'pending' }]
             : [],
-          signature: settled ? "1".repeat(64) : null,
+          signature: settled ? '1'.repeat(64) : null,
         },
       },
     });
   });
-  await page.goto(`/checkout/${id}#${"a".repeat(64)}`);
-  await page.getByRole("button", { name: "Pay with Phantom" }).click();
+  await page.goto(`/checkout/${id}#${'a'.repeat(64)}`);
+  await page.getByRole('button', { name: 'Pay with Phantom' }).click();
   await expect(page.locator('[aria-current="step"]')).toHaveText(
-    "1Awaiting wallet approval",
+    '1Awaiting wallet approval',
   );
-  await page.waitForFunction(() => "approveFixtureWallet" in window);
+  await page.waitForFunction(() => 'approveFixtureWallet' in window);
   await page.evaluate(() =>
     (
       window as unknown as {
@@ -323,90 +323,90 @@ test("browser wallet flow verifies only after authoritative settlement", async (
     ).approveFixtureWallet(),
   );
   await expect(page.locator('[aria-current="step"]')).toHaveText(
-    "3Verifying on-chain",
+    '3Verifying on-chain',
   );
   await expect(
-    page.getByText("Verified testnet transfer. No real funds were used."),
+    page.getByText('Verified testnet transfer. No real funds were used.'),
   ).toHaveCount(0);
   settled = true;
-  await page.getByRole("button", { name: "Refresh status" }).click();
+  await page.getByRole('button', { name: 'Refresh status' }).click();
   await expect(page.locator('[aria-current="step"]')).toHaveText(
-    "4Payment verified",
+    '4Payment verified',
   );
-  expect(rpcMethods).toEqual(["getGenesisHash", "getLatestBlockhash"]);
+  expect(rpcMethods).toEqual(['getGenesisHash', 'getLatestBlockhash']);
 });
 
-test("disabled demo explains availability and blocks payment creation", async ({
+test('disabled demo explains availability and blocks payment creation', async ({
   page,
 }) => {
   let posts = 0;
-  await page.route("**/api/demo/status", (route) =>
+  await page.route('**/api/demo/status', (route) =>
     route.fulfill({ json: { data: { enabled: false } } }),
   );
-  await page.route("**/api/demo/payments", (route) => {
+  await page.route('**/api/demo/payments', (route) => {
     posts++;
     return route.abort();
   });
-  await page.goto("/");
-  await expect(page.getByRole("status")).toHaveText(
-    "Demo payments are disabled.",
+  await page.goto('/');
+  await expect(page.getByRole('status')).toHaveText(
+    'Demo payments are disabled.',
   );
   await expect(
-    page.getByRole("button", { name: "Pay", exact: true }),
+    page.getByRole('button', { name: 'Pay', exact: true }),
   ).toBeDisabled();
-  await expect(page.getByLabel("Amount in USD")).toBeDisabled();
+  await expect(page.getByLabel('Amount in USD')).toBeDisabled();
   expect(posts).toBe(0);
 });
 
-test("USD form creates a payment and opens checkout with four progress steps", async ({
+test('USD form creates a payment and opens checkout with four progress steps', async ({
   page,
 }) => {
-  const id = "11111111-1111-4111-8111-111111111111";
-  await page.route("**/api/demo/status", async (route) => {
-    expect(route.request().method()).toBe("GET");
+  const id = '11111111-1111-4111-8111-111111111111';
+  await page.route('**/api/demo/status', async (route) => {
+    expect(route.request().method()).toBe('GET');
     await route.fulfill({ json: { data: { enabled: true } } });
   });
-  await page.route("**/api/demo/payments", async (route) => {
+  await page.route('**/api/demo/payments', async (route) => {
     expect(route.request().postDataJSON()).toEqual({ usdCents: 1234 });
     expect(route.request().headers().authorization).toBeUndefined();
     await route.fulfill({
       json: {
         data: {
-          checkoutUrl: `${test.info().project.use.baseURL}/checkout/${id}#${"a".repeat(64)}`,
+          checkoutUrl: `${test.info().project.use.baseURL}/checkout/${id}#${'a'.repeat(64)}`,
         },
       },
     });
   });
-  await page.route("**/v1/checkout/**", async (route) => {
+  await page.route('**/v1/checkout/**', async (route) => {
     await route.fulfill({
       headers: {
-        "access-control-allow-origin": test.info().project.use.baseURL!,
-        "access-control-allow-headers": "authorization",
+        'access-control-allow-origin': test.info().project.use.baseURL!,
+        'access-control-allow-headers': 'authorization',
       },
       json: {
         data: {
           id,
           usdCents: 1234,
-          displaySol: "0.082266667",
-          lamports: "82266667",
-          status: "pending",
-          recipient: "So11111111111111111111111111111111111111112",
+          displaySol: '0.082266667',
+          lamports: '82266667',
+          status: 'pending',
+          recipient: 'So11111111111111111111111111111111111111112',
           expiresAt: Date.now() + 900_000,
-          network: "solana-devnet",
+          network: 'solana-devnet',
           attempts: [],
           signature: null,
         },
       },
     });
   });
-  await page.goto("/");
-  await page.getByLabel("Amount in USD").fill("12.34");
-  await page.getByRole("button", { name: "Pay", exact: true }).click();
-  await expect(page.getByText("$12.34")).toBeVisible();
+  await page.goto('/');
+  await page.getByLabel('Amount in USD').fill('12.34');
+  await page.getByRole('button', { name: 'Pay', exact: true }).click();
+  await expect(page.getByText('$12.34')).toBeVisible();
   await expect(
-    page.getByRole("list", { name: "Payment progress" }).getByRole("listitem"),
+    page.getByRole('list', { name: 'Payment progress' }).getByRole('listitem'),
   ).toHaveCount(4);
-  expect(new URL(page.url()).hash).toBe("");
+  expect(new URL(page.url()).hash).toBe('');
   await page.reload();
-  await expect(page.getByText("$12.34")).toBeVisible();
+  await expect(page.getByText('$12.34')).toBeVisible();
 });
