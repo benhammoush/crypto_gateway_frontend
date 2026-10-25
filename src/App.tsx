@@ -1,3 +1,8 @@
+/**
+ * Merchant example and checkout lifecycle with guarded wallet submission.
+ * @packageDocumentation
+ */
+
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { parseUsd, paymentStatus, request, submitSignature } from "./api";
 import { Payment, PROGRESS, Progress } from "./types";
@@ -12,6 +17,7 @@ import { readSession, removeSession, saveSession } from "./storage";
 
 const MAX_POLLS = 180;
 
+/** Render the merchant example and create a checkout through the server-side adapter. */
 function Demo() {
   const [amount, setAmount] = useState("10.00");
   const [busy, setBusy] = useState(false);
@@ -44,6 +50,7 @@ function Demo() {
     return () => controller.abort();
   }, []);
 
+  /** Create the payment from validated form input and navigate to its checkout. */
   async function pay(event: FormEvent) {
     event.preventDefault();
     if (busy || availability !== "enabled") return;
@@ -168,6 +175,7 @@ export function Checkout({ id, token }: { id: string; token: string }) {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     let polls = 0;
+    /** Refresh payment state and submit a saved candidate signature when verification has not recorded it yet. */
     async function poll() {
       try {
         const current = await paymentStatus(id, token, controller.signal);
@@ -226,6 +234,10 @@ export function Checkout({ id, token }: { id: string; token: string }) {
     };
   }, [id, token, savedKey, round]);
 
+  /**
+   * Guard wallet submission with uncertainty until the returned signature is saved.
+   * The candidate signature then continues preventing duplicate payment during verification.
+   */
   async function pay() {
     if (!payment || busy || candidate.current || uncertain) return;
     setBusy(true);
@@ -415,6 +427,7 @@ export function Checkout({ id, token }: { id: string; token: string }) {
   );
 }
 
+/** Select the merchant example or the capability-bearing checkout route. */
 export default function App() {
   const match = /^\/checkout\/([a-f0-9-]{36})$/.exec(location.pathname);
   let token = "";

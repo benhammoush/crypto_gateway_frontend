@@ -1,3 +1,7 @@
+/** Public build configuration isolation and rejection regressions.
+ * @file
+ */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";

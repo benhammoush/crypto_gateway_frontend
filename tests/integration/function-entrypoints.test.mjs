@@ -1,3 +1,7 @@
+/** Hosted function entry-point routing and server adapter regressions.
+ * @file
+ */
+
 import { expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import {

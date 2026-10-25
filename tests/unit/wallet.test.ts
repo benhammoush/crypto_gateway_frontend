@@ -1,3 +1,8 @@
+/**
+ * Wallet compatibility, uncertainty classification and safe-diagnostic regressions.
+ * @packageDocumentation
+ */
+
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   Connection,
@@ -16,7 +21,9 @@ import {
 import type { Payment } from "../../src/types";
 
 const payer = new PublicKey("11111111111111111111111111111111");
+/** RPC genesis-hash return type used to construct typed network fixtures. */
 type GenesisHash = Awaited<ReturnType<Connection["getGenesisHash"]>>;
+/** RPC blockhash response type used to construct typed expiry fixtures. */
 type LatestBlockhash = Awaited<ReturnType<Connection["getLatestBlockhash"]>>;
 const genesis = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG" as GenesisHash;
 const blockhash =
@@ -92,6 +99,7 @@ it.each(["100000000", "9007199254740993"])(
     window.phantom = {
       solana: {
         isPhantom: true,
+        /** Return the connected fixture payer. */
         connect: async () => ({ publicKey: payer }),
         signAndSendTransaction: send,
       },
@@ -108,6 +116,7 @@ it("does not submit on the wrong network or after expiry", async () => {
   window.phantom = {
     solana: {
       isPhantom: true,
+      /** Return the connected fixture payer. */
       connect: async () => ({ publicKey: payer }),
       signAndSendTransaction: send,
     },
@@ -135,6 +144,7 @@ it("distinguishes explicit rejection from uncertain submission", async () => {
   window.phantom = {
     solana: {
       isPhantom: true,
+      /** Return the connected fixture payer. */
       connect: async () => ({ publicKey: payer }),
       signAndSendTransaction: send,
     },
@@ -150,7 +160,9 @@ it("keeps submission uncertain if the wallet returns no usable signature", async
   window.phantom = {
     solana: {
       isPhantom: true,
+      /** Return the connected fixture payer. */
       connect: async () => ({ publicKey: payer }),
+      /** Return a malformed signature to exercise uncertain-submission protection. */
       signAndSendTransaction: async () => ({ signature: "" }),
     },
   };
@@ -177,6 +189,7 @@ it.each([
     window.phantom = {
       solana: {
         isPhantom: true,
+        /** Return the connected fixture payer. */
         connect: async () => ({ publicKey: payer }),
         signAndSendTransaction: vi.fn().mockRejectedValue({
           code,
@@ -238,6 +251,7 @@ it("authenticates only to the configured gateway, ignoring provider URL data", a
   window.phantom = {
     solana: {
       isPhantom: true,
+      /** Return the connected fixture payer. */
       connect: async () => ({ publicKey: payer }),
       signAndSendTransaction: send,
     },
@@ -277,6 +291,7 @@ it("does not submit if payment expires during wallet connection", async () => {
   window.phantom = {
     solana: {
       isPhantom: true,
+      /** Raise a controlled failure before wallet submission. */
       connect: async () => {
         expiring.expiresAt = Date.now() - 1;
         return { publicKey: payer };
@@ -314,6 +329,7 @@ it.each([
     window.phantom = {
       solana: {
         isPhantom: true,
+        /** Return the connected fixture payer. */
         connect: async () => ({ publicKey: payer }),
         signAndSendTransaction: send,
         request,
@@ -352,6 +368,7 @@ it("uses nested message hints and records elapsed time without proving blockhash
   window.phantom = {
     solana: {
       isPhantom: true,
+      /** Return the connected fixture payer. */
       connect: async () => ({ publicKey: payer }),
       signAndSendTransaction: send,
     },
@@ -374,6 +391,7 @@ it.each(["production", "local", "", undefined])(
     const message = vi.fn(() => "secret provider message");
     const failure = {
       code: -32603,
+      /** Track forbidden raw-message inspection outside the dev-only diagnostic path. */
       get message() {
         return message();
       },
@@ -381,6 +399,7 @@ it.each(["production", "local", "", undefined])(
     window.phantom = {
       solana: {
         isPhantom: true,
+        /** Return the connected fixture payer. */
         connect: async () => ({ publicKey: payer }),
         signAndSendTransaction: vi.fn().mockRejectedValue(failure),
       },
@@ -397,6 +416,7 @@ it("keeps unexpected message access failures uncertain and never retries", async
   vi.stubEnv("VITE_APP_ENV", "dev");
   const send = vi.fn().mockRejectedValue({
     code: -32603,
+    /** Simulate a throwing wallet-error getter without clearing submission uncertainty. */
     get message() {
       throw new Error("secret");
     },
@@ -404,6 +424,7 @@ it("keeps unexpected message access failures uncertain and never retries", async
   window.phantom = {
     solana: {
       isPhantom: true,
+      /** Return the connected fixture payer. */
       connect: async () => ({ publicKey: payer }),
       signAndSendTransaction: send,
     },
@@ -419,7 +440,9 @@ it("classifies an invalid dev wallet response without treating it as not submitt
   window.phantom = {
     solana: {
       isPhantom: true,
+      /** Return the connected fixture payer. */
       connect: async () => ({ publicKey: payer }),
+      /** Return a malformed signature to exercise uncertain-submission protection. */
       signAndSendTransaction: async () => ({ signature: "" }),
     },
   };

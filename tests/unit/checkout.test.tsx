@@ -1,4 +1,9 @@
 // @vitest-environment jsdom
+/**
+ * Checkout recovery, polling and duplicate-submission protection regressions.
+ * @packageDocumentation
+ */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,

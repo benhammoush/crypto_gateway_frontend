@@ -1,3 +1,8 @@
+/**
+ * Local HTTP adapter for server-only merchant operations.
+ * @packageDocumentation
+ */
+
 import { createServer } from "node:http";
 import { merchantHandler } from "./merchant";
 

@@ -1,3 +1,8 @@
+/**
+ * Best-effort tab storage for checkout recovery without permitting duplicate payment.
+ * @packageDocumentation
+ */
+
 /** Browser storage may be disabled. A submitted transfer must never trigger a second payment. */
 export function readSession(key: string): string | null {
   try {
@@ -7,6 +12,7 @@ export function readSession(key: string): string | null {
   }
 }
 
+/** Attempt to retain recovery state and report whether browser storage accepted it. */
 export function saveSession(key: string, value: string): boolean {
   try {
     sessionStorage.setItem(key, value);
@@ -16,6 +22,7 @@ export function saveSession(key: string, value: string): boolean {
   }
 }
 
+/** Remove recovery state without throwing when tab storage is disabled. */
 export function removeSession(key: string): void {
   try {
     sessionStorage.removeItem(key);

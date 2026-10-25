@@ -1,4 +1,6 @@
-/** Exercise the actual packaged functions with payments disabled and all upstream fetches forbidden. @file */
+/** Exercise the actual packaged functions with payments disabled and all upstream fetches forbidden.
+ * @file
+ */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";

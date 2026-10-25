@@ -1,3 +1,7 @@
+/** Read-only delivery diagnostics and safe-failure regressions.
+ * @file
+ */
+
 import { expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";

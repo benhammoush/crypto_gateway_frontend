@@ -1,10 +1,17 @@
+/**
+ * Browser-to-gateway requests, response errors and payment input parsing.
+ * @packageDocumentation
+ */
+
 import { Payment } from "./types";
 
 const origin =
   import.meta.env.VITE_API_ORIGIN ??
   (import.meta.env.DEV ? "http://localhost:8787" : "");
 
+/** Public gateway failure with an actionable message and code. */
 export class ApiError extends Error {
+  /** Retain the public message and code for UI error handling. */
   constructor(
     message: string,
     public code: string,
@@ -18,6 +25,7 @@ export function checkoutRpcUrl(id: string): string {
   return `${origin}/v1/checkout/${encodeURIComponent(id)}/rpc`;
 }
 
+/** Fetch JSON and translate unsuccessful gateway responses into the public error contract. */
 export async function request<T>(
   url: string,
   init: RequestInit = {},
@@ -40,6 +48,7 @@ export async function request<T>(
   return body.data;
 }
 
+/** Read backend-confirmed status using the checkout capability and optional cancellation signal. */
 export function paymentStatus(
   id: string,
   token: string,
@@ -51,6 +60,7 @@ export function paymentStatus(
   });
 }
 
+/** Submit a wallet-returned signature for verification; submission alone is not settlement. */
 export function submitSignature(
   id: string,
   token: string,

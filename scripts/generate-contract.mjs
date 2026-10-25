@@ -1,3 +1,7 @@
+/** Generate or check browser types against the backend-owned OpenAPI contract.
+ * @file
+ */
+
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import openapiTS, { astToString } from "openapi-typescript";

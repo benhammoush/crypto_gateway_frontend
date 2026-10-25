@@ -1,3 +1,7 @@
+/** Dev deployment identity, smoke and bounded-response regressions.
+ * @file
+ */
+
 import { afterEach, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -55,9 +59,11 @@ it("reads only the exact dev project and emits no provider payload or secret", a
 it("cancels oversized response streams", async () => {
   let cancelled = false;
   const stream = new globalThis.ReadableStream({
+    /** Supply the controlled response stream for the body-size test. */
     start(controller) {
       controller.enqueue(new Uint8Array(65_537));
     },
+    /** Record cancellation of the rejected response stream. */
     cancel() {
       cancelled = true;
     },

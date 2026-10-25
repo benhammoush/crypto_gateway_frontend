@@ -1,3 +1,8 @@
+/**
+ * Wallet submission, bounded diagnostics and uncertain-submission protection.
+ * @packageDocumentation
+ */
+
 import {
   Connection,
   PublicKey,
@@ -9,12 +14,16 @@ import {
 import { Payment } from "./types";
 import { checkoutRpcUrl } from "./api";
 
+/** Injected wallet capabilities accepted at the browser boundary. */
 export interface PhantomProvider {
   isPhantom?: boolean;
+  /** Ask the user to connect and expose the approved public key. */
   connect(): Promise<{ publicKey: PublicKey }>;
+  /** Approve and submit the transaction; a returned signature is not settlement evidence. */
   signAndSendTransaction(
     transaction: VersionedTransaction,
   ): Promise<{ signature: string }>;
+  /** Optional serialized-message submission capability exposed by the injected wallet. */
   request?(request: {
     method: "signAndSendTransaction";
     params: { message: string };
@@ -22,6 +31,7 @@ export interface PhantomProvider {
 }
 
 declare global {
+  /** Browser extension for the optional injected Phantom provider. */
   interface Window {
     phantom?: { solana?: PhantomProvider };
   }
@@ -42,6 +52,7 @@ const WALLET_DIAGNOSTICS = [
   "WALLET_RPC_4900",
   "WALLET_RPC_4901",
 ] as const;
+/** Allowlisted diagnostic code safe to retain in checkout recovery state. */
 type WalletDiagnostic = (typeof WALLET_DIAGNOSTICS)[number];
 
 /** Accept only fixed diagnostic labels, including when restoring tab storage. */
@@ -59,6 +70,7 @@ const WALLET_FAILURE_REASONS = [
   "UNKNOWN",
 ] as const;
 
+/** Bounded timing and reason fields; never raw wallet error text. */
 interface WalletFailureDetails {
   reason: (typeof WALLET_FAILURE_REASONS)[number];
   walletSeconds: number;
@@ -155,7 +167,9 @@ function walletFailureReason(error: unknown): WalletFailureDetails["reason"] {
   return "UNKNOWN";
 }
 
+/** Wallet submission may have occurred; callers must not assume a second payment is safe. */
 export class WalletSubmissionUncertain extends Error {
+  /** Retain the uncertainty classification and optional safe diagnostics. */
   constructor(
     message: string,
     options?: ErrorOptions,
@@ -165,6 +179,7 @@ export class WalletSubmissionUncertain extends Error {
     super(message, options);
   }
 }
+/** Failure classified as occurring without a submitted payment from this request. */
 export class WalletNotSubmitted extends Error {}
 
 /** Build transfer + signer-bound memo; the gateway also validates wallet-added compute settings. */
@@ -184,6 +199,7 @@ export async function sendPayment(
       commitment: "finalized",
       httpHeaders: { authorization: `Bearer ${token}` },
       disableRetryOnRateLimit: true,
+      /** Preserve the explicit-finality gateway contract and bound each browser RPC request. */
       fetch: (url, init) => {
         // Kit elides Solana's finalized default; the gateway contract requires
         // that commitment explicitly, even when it is the network default.

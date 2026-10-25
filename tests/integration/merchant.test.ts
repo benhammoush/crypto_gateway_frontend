@@ -1,3 +1,8 @@
+/**
+ * Server-only merchant credentials, requests and webhook authentication regressions.
+ * @packageDocumentation
+ */
+
 import {
   afterAll,
   afterEach,
@@ -39,6 +44,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Invoke the merchant adapter with controlled requests and server bindings. */
 function call(
   path: string,
   body: string,
