@@ -3,17 +3,17 @@
  * @packageDocumentation
  */
 
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { parseUsd, paymentStatus, request, submitSignature } from "./api";
-import { Payment, PROGRESS, Progress } from "./types";
+import { FormEvent, useEffect, useRef, useState } from 'react';
+import { parseUsd, paymentStatus, request, submitSignature } from './api';
+import { Payment, PROGRESS, Progress } from './types';
 import {
   sendPayment,
   walletDiagnostic,
   walletFailureDetails,
   WalletNotSubmitted,
   WalletSubmissionUncertain,
-} from "./wallet";
-import { readSession, removeSession, saveSession } from "./storage";
+} from './wallet';
+import { readSession, removeSession, saveSession } from './storage';
 
 const MAX_POLLS = 180;
 
@@ -27,33 +27,33 @@ interface CheckoutProps {
  * @returns The amount form and its availability or failure state.
  */
 function Demo() {
-  const [amount, setAmount] = useState("10.00");
+  const [amount, setAmount] = useState('10.00');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [retry, setRetry] = useState<{ cents: number; key: string }>();
   const [availability, setAvailability] = useState<
-    "checking" | "enabled" | "disabled" | "unavailable"
-  >("checking");
+    'checking' | 'enabled' | 'disabled' | 'unavailable'
+  >('checking');
 
   useEffect(() => {
     const controller = new AbortController();
-    void request<{ enabled: boolean }>("/api/demo/status", {
-      method: "GET",
-      cache: "no-store",
+    void request<{ enabled: boolean }>('/api/demo/status', {
+      method: 'GET',
+      cache: 'no-store',
       signal: controller.signal,
     })
       .then((status) => {
         if (controller.signal.aborted) return;
         setAvailability(
-          typeof status.enabled === "boolean"
+          typeof status.enabled === 'boolean'
             ? status.enabled
-              ? "enabled"
-              : "disabled"
-            : "unavailable",
+              ? 'enabled'
+              : 'disabled'
+            : 'unavailable',
         );
       })
       .catch(() => {
-        if (!controller.signal.aborted) setAvailability("unavailable");
+        if (!controller.signal.aborted) setAvailability('unavailable');
       });
     return () => controller.abort();
   }, []);
@@ -63,20 +63,20 @@ function Demo() {
    */
   async function pay(event: FormEvent) {
     event.preventDefault();
-    if (busy || availability !== "enabled") return;
-    setError("");
+    if (busy || availability !== 'enabled') return;
+    setError('');
     setBusy(true);
     try {
       const cents = parseUsd(amount);
       const key = retry?.cents === cents ? retry.key : crypto.randomUUID();
       setRetry({ cents, key });
       const result = await request<{ checkoutUrl: string }>(
-        "/api/demo/payments",
+        '/api/demo/payments',
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "content-type": "application/json",
-            "idempotency-key": key,
+            'content-type': 'application/json',
+            'idempotency-key': key,
           },
           body: JSON.stringify({ usdCents: cents }),
         },
@@ -87,12 +87,12 @@ function Demo() {
         !/^\/checkout\/[a-f0-9-]{36}$/.test(destination.pathname)
       )
         throw new Error(
-          "The demo returned an unexpected checkout destination.",
+          'The demo returned an unexpected checkout destination.',
         );
       location.assign(destination.href);
     } catch (error) {
       setError(
-        error instanceof Error ? error.message : "Unable to create payment.",
+        error instanceof Error ? error.message : 'Unable to create payment.',
       );
     } finally {
       setBusy(false);
@@ -120,24 +120,24 @@ function Demo() {
             inputMode="decimal"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            disabled={busy || availability !== "enabled"}
+            disabled={busy || availability !== 'enabled'}
             autoComplete="off"
             required
           />
           <span className="currency">USD</span>
         </div>
-        <button type="submit" disabled={busy || availability !== "enabled"}>
-          {busy ? "Opening checkout…" : "Pay"}
+        <button type="submit" disabled={busy || availability !== 'enabled'}>
+          {busy ? 'Opening checkout…' : 'Pay'}
           <span aria-hidden="true">↗</span>
         </button>
       </form>
-      {availability !== "enabled" && (
+      {availability !== 'enabled' && (
         <p className="notice" role="status">
-          {availability === "checking"
-            ? "Checking demo availability…"
-            : availability === "disabled"
-              ? "Demo payments are disabled."
-              : "Demo availability could not be checked. Payments remain unavailable; reload to try again."}
+          {availability === 'checking'
+            ? 'Checking demo availability…'
+            : availability === 'disabled'
+              ? 'Demo payments are disabled.'
+              : 'Demo availability could not be checked. Payments remain unavailable; reload to try again.'}
         </p>
       )}
       {error && (
@@ -161,7 +161,7 @@ export function Checkout(props: CheckoutProps) {
   const { id, token } = props;
   const [payment, setPayment] = useState<Payment>();
   const [progress, setProgress] = useState<Progress>();
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [round, setRound] = useState(0);
   const [now, setNow] = useState(Date.now());
@@ -169,13 +169,13 @@ export function Checkout(props: CheckoutProps) {
   const candidate = useRef(readSession(savedKey));
   const terminal = useRef(false);
   const [uncertain, setUncertain] = useState(
-    readSession(`${savedKey}:uncertain`) === "true",
+    readSession(`${savedKey}:uncertain`) === 'true',
   );
   const [diagnostic, setDiagnostic] = useState(() =>
     walletDiagnostic(readSession(`${savedKey}:walletDiagnostic`)),
   );
   const [walletFailure, setWalletFailure] = useState(() =>
-    import.meta.env.VITE_APP_ENV === "dev"
+    import.meta.env.VITE_APP_ENV === 'dev'
       ? walletFailureDetails(readSession(`${savedKey}:walletFailure`))
       : undefined,
   );
@@ -195,10 +195,10 @@ export function Checkout(props: CheckoutProps) {
         const current = await paymentStatus(id, token, controller.signal);
         if (controller.signal.aborted || terminal.current) return;
         setPayment(current);
-        if (current.status === "settled") {
+        if (current.status === 'settled') {
           terminal.current = true;
-          setProgress("Payment verified");
-          setMessage("");
+          setProgress('Payment verified');
+          setMessage('');
           removeSession(savedKey);
           removeSession(`${savedKey}:uncertain`);
           removeSession(`${savedKey}:walletDiagnostic`);
@@ -210,35 +210,35 @@ export function Checkout(props: CheckoutProps) {
           (entry) => entry.signature === signature,
         );
         if (signature && !attempt) {
-          setProgress("Transaction submitted");
+          setProgress('Transaction submitted');
           await submitSignature(id, token, signature);
-        } else if (current.status === "verifying") {
-          setProgress("Verifying on-chain");
-          setMessage("");
-        } else if (attempt?.state === "rejected") {
+        } else if (current.status === 'verifying') {
+          setProgress('Verifying on-chain');
+          setMessage('');
+        } else if (attempt?.state === 'rejected') {
           setProgress(undefined);
           setMessage(
-            "This transfer could not be verified. Contact the merchant before sending another payment.",
+            'This transfer could not be verified. Contact the merchant before sending another payment.',
           );
           return;
-        } else if (current.status === "expired") {
+        } else if (current.status === 'expired') {
           setProgress(undefined);
           setMessage(
-            "This quote has expired. Do not send a new transfer. If you already paid, contact the merchant.",
+            'This quote has expired. Do not send a new transfer. If you already paid, contact the merchant.',
           );
           return;
         }
       } catch {
         if (controller.signal.aborted || terminal.current) return;
         setMessage(
-          "Unable to refresh payment status. Your payment has not been marked failed.",
+          'Unable to refresh payment status. Your payment has not been marked failed.',
         );
       }
       if (!controller.signal.aborted && ++polls < MAX_POLLS)
         timer = setTimeout(() => void poll(), 5000);
       else if (!controller.signal.aborted)
         setMessage(
-          "Automatic updates paused. Refresh status to continue tracking.",
+          'Automatic updates paused. Refresh status to continue tracking.',
         );
     }
     void poll();
@@ -255,15 +255,15 @@ export function Checkout(props: CheckoutProps) {
   async function pay() {
     if (!payment || busy || candidate.current || uncertain) return;
     setBusy(true);
-    setMessage("");
-    setProgress("Awaiting wallet approval");
+    setMessage('');
+    setProgress('Awaiting wallet approval');
     let submitted = false;
     try {
       // Guard BEFORE opening the wallet: it may broadcast before its promise
       // resolves, and a reload in that window must not offer another transfer.
-      if (!saveSession(`${savedKey}:uncertain`, "true")) {
+      if (!saveSession(`${savedKey}:uncertain`, 'true')) {
         throw new WalletNotSubmitted(
-          "Enable session storage before submitting a payment safely.",
+          'Enable session storage before submitting a payment safely.',
         );
       }
       setUncertain(true);
@@ -274,19 +274,19 @@ export function Checkout(props: CheckoutProps) {
         removeSession(`${savedKey}:uncertain`);
         setUncertain(false);
       }
-      setProgress("Transaction submitted");
+      setProgress('Transaction submitted');
       const current = await submitSignature(id, token, signature);
       if (!terminal.current) {
         setPayment(current);
-        if (current.status === "settled") {
+        if (current.status === 'settled') {
           terminal.current = true;
-          setProgress("Payment verified");
-        } else if (current.status === "verifying")
-          setProgress("Verifying on-chain");
+          setProgress('Payment verified');
+        } else if (current.status === 'verifying')
+          setProgress('Verifying on-chain');
         else {
           setProgress(undefined);
           setMessage(
-            "This transfer could not be verified. Contact the merchant before sending another payment.",
+            'This transfer could not be verified. Contact the merchant before sending another payment.',
           );
         }
       }
@@ -296,7 +296,7 @@ export function Checkout(props: CheckoutProps) {
         const code = walletDiagnostic(error.diagnosticCode);
         setDiagnostic(code);
         if (code) saveSession(`${savedKey}:walletDiagnostic`, code);
-        if (import.meta.env.VITE_APP_ENV === "dev") {
+        if (import.meta.env.VITE_APP_ENV === 'dev') {
           const details = walletFailureDetails(error.details);
           setWalletFailure(details);
           if (details)
@@ -310,10 +310,10 @@ export function Checkout(props: CheckoutProps) {
       if (!submitted) setProgress(undefined);
       setMessage(
         submitted
-          ? "Your transaction was submitted. Refresh status; do not pay again."
+          ? 'Your transaction was submitted. Refresh status; do not pay again.'
           : error instanceof Error
             ? error.message
-            : "Wallet approval was not completed.",
+            : 'Wallet approval was not completed.',
       );
     } finally {
       setBusy(false);
@@ -324,7 +324,7 @@ export function Checkout(props: CheckoutProps) {
     ? Math.max(0, Math.ceil((payment.expiresAt - now) / 1000))
     : 0;
   const canPay =
-    payment?.status === "pending" &&
+    payment?.status === 'pending' &&
     remaining > 0 &&
     !candidate.current &&
     !uncertain;
@@ -340,10 +340,10 @@ export function Checkout(props: CheckoutProps) {
             ${(payment.usdCents / 100).toFixed(2)} <small>USD</small>
           </div>
           <div className="quote">
-            {payment.displaySol} SOL{" "}
+            {payment.displaySol} SOL{' '}
             <span>
               Quote locked · {Math.floor(remaining / 60)}:
-              {String(remaining % 60).padStart(2, "0")}
+              {String(remaining % 60).padStart(2, '0')}
             </span>
           </div>
           <dl>
@@ -354,7 +354,7 @@ export function Checkout(props: CheckoutProps) {
           </dl>
           {canPay && (
             <button onClick={() => void pay()} disabled={busy}>
-              {busy ? "Check your wallet…" : "Pay with Phantom"}
+              {busy ? 'Check your wallet…' : 'Pay with Phantom'}
               <span aria-hidden="true">↗</span>
             </button>
           )}
@@ -367,16 +367,16 @@ export function Checkout(props: CheckoutProps) {
           <li
             key={label}
             className={
-              progress && index <= PROGRESS.indexOf(progress) ? "active" : ""
+              progress && index <= PROGRESS.indexOf(progress) ? 'active' : ''
             }
-            aria-current={label === progress ? "step" : undefined}
+            aria-current={label === progress ? 'step' : undefined}
           >
             <span>{index + 1}</span>
             {label}
           </li>
         ))}
       </ol>
-      {progress === "Payment verified" && (
+      {progress === 'Payment verified' && (
         <p className="notice success">
           Verified testnet transfer. No real funds were used.
         </p>
@@ -386,29 +386,29 @@ export function Checkout(props: CheckoutProps) {
           {message}
         </p>
       )}
-      {uncertain && !busy && !message && progress !== "Payment verified" && (
+      {uncertain && !busy && !message && progress !== 'Payment verified' && (
         <p className="notice" role="alert">
           Wallet submission is uncertain. Check wallet activity and contact the
           merchant before paying again.
         </p>
       )}
-      {uncertain && !busy && progress !== "Payment verified" && (
+      {uncertain && !busy && progress !== 'Payment verified' && (
         <p className="notice" role="status">
-          Wallet diagnostic: <code>{diagnostic ?? "UNAVAILABLE"}</code>. This
+          Wallet diagnostic: <code>{diagnostic ?? 'UNAVAILABLE'}</code>. This
           does not confirm whether a transfer was submitted.
           <br />
-          Wallet API check: request{" "}
-          {typeof window.phantom?.solana?.request === "function"
-            ? "available"
-            : "unavailable"}
-          ; direct sender{" "}
+          Wallet API check: request{' '}
+          {typeof window.phantom?.solana?.request === 'function'
+            ? 'available'
+            : 'unavailable'}
+          ; direct sender{' '}
           {window.phantom?.solana &&
-          "signAndSendTransaction" in window.phantom.solana &&
-          typeof window.phantom.solana.signAndSendTransaction === "function"
-            ? "available"
-            : "unavailable"}
+          'signAndSendTransaction' in window.phantom.solana &&
+          typeof window.phantom.solana.signAndSendTransaction === 'function'
+            ? 'available'
+            : 'unavailable'}
           .
-          {import.meta.env.VITE_APP_ENV === "dev" && walletFailure && (
+          {import.meta.env.VITE_APP_ENV === 'dev' && walletFailure && (
             <>
               <br />
               Dev wallet hint: <code>{walletFailure.reason}</code>.
@@ -416,18 +416,18 @@ export function Checkout(props: CheckoutProps) {
               Wallet wait: {walletFailure.walletSeconds}s. Time since blockhash
               fetched: {walletFailure.blockhashSeconds}s.
               <br />
-              Quote expired at error:{" "}
-              {walletFailure.quoteExpired ? "yes" : "no"}. These details do not
+              Quote expired at error:{' '}
+              {walletFailure.quoteExpired ? 'yes' : 'no'}. These details do not
               prove submission or the cause.
             </>
           )}
         </p>
       )}
-      {!busy && progress !== "Payment verified" && (
+      {!busy && progress !== 'Payment verified' && (
         <button
           className="secondary"
           onClick={() => {
-            setMessage("");
+            setMessage('');
             setRound((value) => value + 1);
           }}
         >
@@ -446,16 +446,16 @@ export function Checkout(props: CheckoutProps) {
  */
 export default function App() {
   const match = /^\/checkout\/([a-f0-9-]{36})$/.exec(location.pathname);
-  let token = "";
+  let token = '';
   if (match) {
     const key = `crypto_gateway:session:${match[1]}`;
     const fragment = location.hash.slice(1);
     if (/^[a-f0-9]{64}$/.test(fragment)) {
       if (saveSession(key, fragment))
-        history.replaceState(null, "", location.pathname);
+        history.replaceState(null, '', location.pathname);
       token = fragment;
     }
-    token ||= readSession(key) ?? "";
+    token ||= readSession(key) ?? '';
   }
   return (
     <div className="shell">

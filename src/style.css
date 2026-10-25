@@ -1,7 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 :root {
-  font-family: "DM Sans", sans-serif;
+  font-family: 'DM Sans', sans-serif;
   color: #e9ede7;
   background: #101510;
   font-synthesis: none;
@@ -41,7 +41,7 @@ header {
   border-bottom: 1px solid #303a2d;
 }
 .brand {
-  font-family: "Space Mono", monospace;
+  font-family: 'Space Mono', monospace;
   font-size: 19px;
   font-weight: 700;
   letter-spacing: -1px;
@@ -56,7 +56,7 @@ footer,
 .footnote,
 dt,
 .quote {
-  font-family: "Space Mono", monospace;
+  font-family: 'Space Mono', monospace;
 }
 .badge {
   font-size: 10px;

@@ -1,10 +1,10 @@
 /** Inspect one recorded dev deployment with bounded reads; never deploy or expose provider bodies.
  * @file
  */
-import assert from "node:assert/strict";
-import { Buffer } from "node:buffer";
-import { appendFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
+import { appendFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 /** Controlled read-only diagnostic failure without raw provider details. */
 class DiagnosticError extends Error {}
@@ -28,7 +28,7 @@ async function text(response) {
   } finally {
     await reader.cancel();
   }
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 /** Read fixed Vercel metadata and unauthenticated application endpoints for the configured dev project only.
@@ -37,15 +37,15 @@ async function text(response) {
  * @returns Sanitized identity and endpoint observations, not acceptance evidence.
  */
 export async function diagnoseDevDelivery(env, fetcher = globalThis.fetch) {
-  assert.equal(env.GITHUB_ACTIONS, "true");
-  assert.equal(env.GITHUB_EVENT_NAME, "workflow_dispatch");
-  assert.equal(env.GITHUB_REF, "refs/heads/main");
-  assert.match(env.EXPECTED_SOURCE_SHA ?? "", /^[a-f0-9]{40}$/);
-  assert.match(env.DEPLOYMENT_ID ?? "", /^dpl_[a-zA-Z0-9]+$/);
-  assert.match(env.VERCEL_ORG_ID ?? "", /^team_[a-zA-Z0-9]+$/);
-  assert.match(env.VERCEL_PROJECT_ID ?? "", /^prj_[a-zA-Z0-9]+$/);
+  assert.equal(env.GITHUB_ACTIONS, 'true');
+  assert.equal(env.GITHUB_EVENT_NAME, 'workflow_dispatch');
+  assert.equal(env.GITHUB_REF, 'refs/heads/main');
+  assert.match(env.EXPECTED_SOURCE_SHA ?? '', /^[a-f0-9]{40}$/);
+  assert.match(env.DEPLOYMENT_ID ?? '', /^dpl_[a-zA-Z0-9]+$/);
+  assert.match(env.VERCEL_ORG_ID ?? '', /^team_[a-zA-Z0-9]+$/);
+  assert.match(env.VERCEL_PROJECT_ID ?? '', /^prj_[a-zA-Z0-9]+$/);
   assert.ok(env.VERCEL_TOKEN);
-  assert.equal(env.TARGET_ORIGIN, "https://crypto-gateway-dev.vercel.app");
+  assert.equal(env.TARGET_ORIGIN, 'https://crypto-gateway-dev.vercel.app');
 
   /** Never send the provider credential outside its fixed API origin.
    * @param path - Fixed project or deployment metadata path.
@@ -55,9 +55,9 @@ export async function diagnoseDevDelivery(env, fetcher = globalThis.fetch) {
     const response = await fetcher(
       `https://api.vercel.com${path}?teamId=${env.VERCEL_ORG_ID}`,
       {
-        method: "GET",
+        method: 'GET',
         headers: { authorization: `Bearer ${env.VERCEL_TOKEN}` },
-        redirect: "error",
+        redirect: 'error',
         signal: globalThis.AbortSignal.timeout(15_000),
       },
     );
@@ -70,41 +70,41 @@ export async function diagnoseDevDelivery(env, fetcher = globalThis.fetch) {
   const project = await metadata(`/v9/projects/${env.VERCEL_PROJECT_ID}`);
   assert.equal(project.id, env.VERCEL_PROJECT_ID);
   assert.equal(project.accountId, env.VERCEL_ORG_ID);
-  assert.equal(project.name, "crypto-gateway-dev");
+  assert.equal(project.name, 'crypto-gateway-dev');
   const deployment = await metadata(`/v13/deployments/${env.DEPLOYMENT_ID}`);
   assert.equal(deployment.id, env.DEPLOYMENT_ID);
   assert.equal(deployment.projectId, project.id);
   assert.equal(deployment.meta?.sourceSha, env.EXPECTED_SOURCE_SHA);
-  assert.match(deployment.meta?.artifactDigest ?? "", /^[a-f0-9]{64}$/);
-  assert.match(deployment.url ?? "", /^[a-z0-9-]+\.vercel\.app$/);
+  assert.match(deployment.meta?.artifactDigest ?? '', /^[a-f0-9]{64}$/);
+  assert.match(deployment.url ?? '', /^[a-z0-9-]+\.vercel\.app$/);
   const checks = [];
   for (const [target, origin] of [
-    ["immutable", `https://${deployment.url}`],
-    ["stable", env.TARGET_ORIGIN],
+    ['immutable', `https://${deployment.url}`],
+    ['stable', env.TARGET_ORIGIN],
   ]) {
-    for (const path of ["/", "/delivery.json", "/api/demo/status"]) {
+    for (const path of ['/', '/delivery.json', '/api/demo/status']) {
       const check = { target, path, httpStatus: null };
       try {
         const response = await fetcher(`${origin}${path}`, {
-          method: "GET",
-          redirect: "manual",
+          method: 'GET',
+          redirect: 'manual',
           signal: globalThis.AbortSignal.timeout(15_000),
         });
         check.httpStatus = response.status;
         if (response.status === 200) {
           const body = await text(response);
-          if (path === "/")
+          if (path === '/')
             check.appShellMatched = body.includes('<div id="root">');
           else {
             const value = JSON.parse(body);
-            if (path === "/delivery.json")
+            if (path === '/delivery.json')
               check.sourceArtifactMatched =
                 value.sourceSha === env.EXPECTED_SOURCE_SHA &&
-                value.environment === "dev" &&
+                value.environment === 'dev' &&
                 value.artifactDigest === deployment.meta.artifactDigest;
             else
               check.statusShapeMatched =
-                typeof value.data?.enabled === "boolean" &&
+                typeof value.data?.enabled === 'boolean' &&
                 Object.keys(value.data).length === 1;
           }
         } else await response.body?.cancel();
@@ -117,7 +117,7 @@ export async function diagnoseDevDelivery(env, fetcher = globalThis.fetch) {
   return {
     sourceSha: env.EXPECTED_SOURCE_SHA,
     deploymentId: env.DEPLOYMENT_ID,
-    ready: deployment.readyState === "READY",
+    ready: deployment.readyState === 'READY',
     selectedDeploymentIsCurrent:
       project.targets?.production?.id === deployment.id,
     protectionConfigurationPresent:
@@ -138,7 +138,7 @@ if (
     );
   } catch (error) {
     const code =
-      error instanceof DiagnosticError ? error.message : "DIAGNOSTIC_REJECTED";
+      error instanceof DiagnosticError ? error.message : 'DIAGNOSTIC_REJECTED';
     process.stderr.write(
       `Read-only diagnostic stopped: ${code}; no provider mutation was requested.\n`,
     );

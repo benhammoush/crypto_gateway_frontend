@@ -1,5 +1,5 @@
 export interface paths {
-  "/v1/payments": {
+  '/v1/payments': {
     parameters: {
       query?: never;
       header?: never;
@@ -8,21 +8,21 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["createPayment"];
+    post: operations['createPayment'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/payments/{id}": {
+  '/v1/payments/{id}': {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get: operations["getPayment"];
+    get: operations['getPayment'];
     put?: never;
     post?: never;
     delete?: never;
@@ -31,14 +31,14 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/checkout/{id}": {
+  '/v1/checkout/{id}': {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get: operations["getCheckout"];
+    get: operations['getCheckout'];
     put?: never;
     post?: never;
     delete?: never;
@@ -47,7 +47,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/checkout/{id}/rpc": {
+  '/v1/checkout/{id}/rpc': {
     parameters: {
       query?: never;
       header?: never;
@@ -57,14 +57,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** @description Bounded read-only RPC for active unsettled payments. Only getGenesisHash with [] and getLatestBlockhash with [{commitment: finalized}]. No batches, notifications, arbitrary destinations or transaction submission. Limited to 12 requests per checkout/minute and 60 globally/minute in addition to existing limits. Provider failures are sanitized gateway errors. */
-    post: operations["checkoutRpc"];
+    post: operations['checkoutRpc'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/checkout/{id}/transactions": {
+  '/v1/checkout/{id}/transactions': {
     parameters: {
       query?: never;
       header?: never;
@@ -73,7 +73,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post: operations["submitTransaction"];
+    post: operations['submitTransaction'];
     delete?: never;
     options?: never;
     head?: never;
@@ -87,32 +87,32 @@ export interface components {
     RpcId: string | number;
     CheckoutRpcRequest: {
       /** @constant */
-      jsonrpc: "2.0";
-      id: components["schemas"]["RpcId"];
+      jsonrpc: '2.0';
+      id: components['schemas']['RpcId'];
       /** @enum {string} */
-      method: "getGenesisHash" | "getLatestBlockhash";
+      method: 'getGenesisHash' | 'getLatestBlockhash';
       params: unknown[];
     } & (
       | {
           /** @constant */
-          method?: "getGenesisHash";
+          method?: 'getGenesisHash';
           params?: unknown[];
         }
       | {
           /** @constant */
-          method?: "getLatestBlockhash";
+          method?: 'getLatestBlockhash';
           params?: {
             /** @constant */
-            commitment: "finalized";
+            commitment: 'finalized';
           }[];
         }
     );
     CheckoutRpcResult: {
       /** @constant */
-      jsonrpc: "2.0";
-      id: components["schemas"]["RpcId"];
+      jsonrpc: '2.0';
+      id: components['schemas']['RpcId'];
       result:
-        | "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+        | 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG'
         | {
             context: {
               slot: number;
@@ -136,9 +136,9 @@ export interface components {
       lamports: string;
       displaySol: string;
       /** @constant */
-      network: "solana-devnet";
+      network: 'solana-devnet';
       /** @constant */
-      asset: "SOL";
+      asset: 'SOL';
       recipient: string;
       memo: string;
       /**
@@ -153,19 +153,19 @@ export interface components {
       createdAt: number;
       expiresAt: number;
       /** @enum {string} */
-      status: "pending" | "verifying" | "settled" | "expired";
+      status: 'pending' | 'verifying' | 'settled' | 'expired';
       signature: string | null;
       settledAt: number | null;
       checkoutUrl?: string;
       attempts: {
         signature: string;
         /** @enum {string} */
-        state: "pending" | "rejected" | "verified";
+        state: 'pending' | 'rejected' | 'verified';
         reason: string | null;
       }[];
     };
     PaymentEnvelope: {
-      data: components["schemas"]["Payment"];
+      data: components['schemas']['Payment'];
       meta: {
         requestId: string;
       };
@@ -185,7 +185,7 @@ export interface components {
         [name: string]: unknown;
       };
       content: {
-        "application/json": components["schemas"]["PaymentEnvelope"];
+        'application/json': components['schemas']['PaymentEnvelope'];
       };
     };
     /** @description 400/401/403/404/409/413/415/422/429/500/503. Retry provider failures safely; never infer payment failure from transport errors. */
@@ -194,7 +194,7 @@ export interface components {
         [name: string]: unknown;
       };
       content: {
-        "application/json": components["schemas"]["ErrorEnvelope"];
+        'application/json': components['schemas']['ErrorEnvelope'];
       };
     };
   };
@@ -211,19 +211,19 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        "Idempotency-Key": string;
+        'Idempotency-Key': string;
       };
       path?: never;
       cookie?: never;
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["CreatePayment"];
+        'application/json': components['schemas']['CreatePayment'];
       };
     };
     responses: {
-      200: components["responses"]["Payment"];
-      default: components["responses"]["Error"];
+      200: components['responses']['Payment'];
+      default: components['responses']['Error'];
     };
   };
   getPayment: {
@@ -231,14 +231,14 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        id: components["parameters"]["PaymentId"];
+        id: components['parameters']['PaymentId'];
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      200: components["responses"]["Payment"];
-      default: components["responses"]["Error"];
+      200: components['responses']['Payment'];
+      default: components['responses']['Error'];
     };
   };
   getCheckout: {
@@ -246,14 +246,14 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        id: components["parameters"]["PaymentId"];
+        id: components['parameters']['PaymentId'];
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      200: components["responses"]["Payment"];
-      default: components["responses"]["Error"];
+      200: components['responses']['Payment'];
+      default: components['responses']['Error'];
     };
   };
   checkoutRpc: {
@@ -261,13 +261,13 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        id: components["parameters"]["PaymentId"];
+        id: components['parameters']['PaymentId'];
       };
       cookie?: never;
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["CheckoutRpcRequest"];
+        'application/json': components['schemas']['CheckoutRpcRequest'];
       };
     };
     responses: {
@@ -277,10 +277,10 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["CheckoutRpcResult"];
+          'application/json': components['schemas']['CheckoutRpcResult'];
         };
       };
-      default: components["responses"]["Error"];
+      default: components['responses']['Error'];
     };
   };
   submitTransaction: {
@@ -288,21 +288,21 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        id: components["parameters"]["PaymentId"];
+        id: components['parameters']['PaymentId'];
       };
       cookie?: never;
     };
     requestBody: {
       content: {
-        "application/json": {
+        'application/json': {
           /** @description Must decode to exactly 64 bytes. */
           signature: string;
         };
       };
     };
     responses: {
-      200: components["responses"]["Payment"];
-      default: components["responses"]["Error"];
+      200: components['responses']['Payment'];
+      default: components['responses']['Error'];
     };
   };
 }

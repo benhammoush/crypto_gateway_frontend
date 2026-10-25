@@ -2,45 +2,45 @@
  * @file
  */
 
-import { expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
+import { expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import ts from "typescript";
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import ts from 'typescript';
 
-it("loads every emitted function entry point in native Node ESM and serves disabled status", () => {
-  const temp = join(tmpdir(), "opencode");
+it('loads every emitted function entry point in native Node ESM and serves disabled status', () => {
+  const temp = join(tmpdir(), 'opencode');
   mkdirSync(temp, { recursive: true });
-  const root = mkdtempSync(join(temp, "gateway-function-esm-"));
+  const root = mkdtempSync(join(temp, 'gateway-function-esm-'));
   try {
-    writeFileSync(join(root, "package.json"), '{"type":"module"}');
+    writeFileSync(join(root, 'package.json'), '{"type":"module"}');
     for (const file of [
-      "api/demo/status.ts",
-      "api/demo/payments.ts",
-      "api/demo/webhook.ts",
-      "server/merchant.ts",
+      'api/demo/status.ts',
+      'api/demo/payments.ts',
+      'api/demo/webhook.ts',
+      'server/merchant.ts',
     ]) {
-      const output = ts.transpileModule(readFileSync(file, "utf8"), {
+      const output = ts.transpileModule(readFileSync(file, 'utf8'), {
         fileName: file,
         compilerOptions: {
           module: ts.ModuleKind.ESNext,
           target: ts.ScriptTarget.ES2022,
         },
       }).outputText;
-      const destination = join(root, file.replace(/\.ts$/, ".js"));
+      const destination = join(root, file.replace(/\.ts$/, '.js'));
       mkdirSync(dirname(destination), { recursive: true });
       writeFileSync(destination, output);
     }
     // No Vitest/tsx/TS loader: exercise Node's actual emitted-JavaScript resolution.
     writeFileSync(
-      join(root, "probe.mjs"),
+      join(root, 'probe.mjs'),
       `
       import assert from 'node:assert/strict';
       import { createServer, request } from 'node:http';
@@ -72,22 +72,22 @@ it("loads every emitted function entry point in native Node ESM and serves disab
       }
     `,
     );
-    const result = spawnSync(process.execPath, [join(root, "probe.mjs")], {
+    const result = spawnSync(process.execPath, [join(root, 'probe.mjs')], {
       cwd: root,
       env: {
         ...(process.env.SystemRoot
           ? { SystemRoot: process.env.SystemRoot }
           : {}),
-        DEMO_ENABLED: "false",
+        DEMO_ENABLED: 'false',
       },
-      encoding: "utf8",
+      encoding: 'utf8',
       timeout: 15_000,
       maxBuffer: 65_536,
     });
     expect(result.error).toBeUndefined();
-    expect(result.stderr).toBe("");
+    expect(result.stderr).toBe('');
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("native-esm-status-ok");
+    expect(result.stdout).toBe('native-esm-status-ok');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

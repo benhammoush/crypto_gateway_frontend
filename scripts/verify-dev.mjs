@@ -2,9 +2,9 @@
  * Read only the configured dev project's metadata; never deploy or certify readiness.
  * @file
  */
-import { appendFileSync } from "node:fs";
-import { Buffer } from "node:buffer";
-import { pathToFileURL } from "node:url";
+import { appendFileSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
+import { pathToFileURL } from 'node:url';
 
 /** Controlled dev-verification failure without credential-bearing provider details. */
 class VerificationError extends Error {}
@@ -25,9 +25,9 @@ function requireValue(condition, code) {
  */
 async function readMetadata(fetcher, url, token) {
   const response = await fetcher(url, {
-    method: "GET",
+    method: 'GET',
     headers: { authorization: `Bearer ${token}` },
-    redirect: "error",
+    redirect: 'error',
     signal: globalThis.AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
@@ -42,13 +42,13 @@ async function readMetadata(fetcher, url, token) {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      requireValue(size <= 65_536, "PROJECT_METADATA_RESPONSE_TOO_LARGE");
+      requireValue(size <= 65_536, 'PROJECT_METADATA_RESPONSE_TOO_LARGE');
       chunks.push(Buffer.from(value));
     }
   } finally {
     await reader.cancel();
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
 /** Inspect only the exact configured dev project, never other projects or runtime secrets.
@@ -58,24 +58,24 @@ async function readMetadata(fetcher, url, token) {
  */
 export async function verifyDev(env, fetcher = globalThis.fetch) {
   requireValue(
-    env.GITHUB_EVENT_NAME === "workflow_dispatch" &&
-      env.GITHUB_REF === "refs/heads/main" &&
-      /^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? ""),
-    "MANUAL_MAIN_REQUIRED",
+    env.GITHUB_EVENT_NAME === 'workflow_dispatch' &&
+      env.GITHUB_REF === 'refs/heads/main' &&
+      /^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? ''),
+    'MANUAL_MAIN_REQUIRED',
   );
   requireValue(
-    !env.DEPLOY_ENABLED || env.DEPLOY_ENABLED === "false",
-    "DEPLOYMENT_MUST_REMAIN_DISABLED",
+    !env.DEPLOY_ENABLED || env.DEPLOY_ENABLED === 'false',
+    'DEPLOYMENT_MUST_REMAIN_DISABLED',
   );
   requireValue(
-    !env.DEMO_ENABLED || env.DEMO_ENABLED === "false",
-    "DEMO_MUST_REMAIN_DISABLED",
+    !env.DEMO_ENABLED || env.DEMO_ENABLED === 'false',
+    'DEMO_MUST_REMAIN_DISABLED',
   );
   requireValue(
-    /^team_[a-zA-Z0-9]+$/.test(env.VERCEL_ORG_ID ?? "") &&
-      /^prj_[a-zA-Z0-9]+$/.test(env.VERCEL_PROJECT_ID ?? "") &&
+    /^team_[a-zA-Z0-9]+$/.test(env.VERCEL_ORG_ID ?? '') &&
+      /^prj_[a-zA-Z0-9]+$/.test(env.VERCEL_PROJECT_ID ?? '') &&
       Boolean(env.VERCEL_TOKEN),
-    "DEV_CONFIGURATION_MISSING_OR_INVALID",
+    'DEV_CONFIGURATION_MISSING_OR_INVALID',
   );
   const project = await readMetadata(
     fetcher,
@@ -85,15 +85,15 @@ export async function verifyDev(env, fetcher = globalThis.fetch) {
   requireValue(
     project?.id === env.VERCEL_PROJECT_ID &&
       project.accountId === env.VERCEL_ORG_ID &&
-      project.name === "crypto-gateway-dev",
-    "PROJECT_IDENTITY_MISMATCH",
+      project.name === 'crypto-gateway-dev',
+    'PROJECT_IDENTITY_MISMATCH',
   );
-  requireValue(!project.link, "COMPETING_GIT_LINK_PRESENT");
+  requireValue(!project.link, 'COMPETING_GIT_LINK_PRESENT');
   const target = project.targets?.production;
   requireValue(
     target == null ||
-      (typeof target.id === "string" && /^dpl_[a-zA-Z0-9]+$/.test(target.id)),
-    "PROJECT_TARGET_IDENTITY_INVALID",
+      (typeof target.id === 'string' && /^dpl_[a-zA-Z0-9]+$/.test(target.id)),
+    'PROJECT_TARGET_IDENTITY_INVALID',
   );
   return {
     sourceSha: env.GITHUB_SHA,
@@ -117,7 +117,7 @@ if (
     const code =
       error instanceof VerificationError
         ? error.message
-        : "VERIFICATION_FAILED";
+        : 'VERIFICATION_FAILED';
     process.stderr.write(
       `Read-only dev verification rejected: ${code}. No provider changes were requested.\n`,
     );

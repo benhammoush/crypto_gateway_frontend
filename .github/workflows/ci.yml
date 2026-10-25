@@ -23,7 +23,7 @@ jobs:
       automation_sha: 64b5e00a3d2895a8cba05b040f0d5a0415613d9e
       source_sha: ${{ inputs.sha || github.sha }}
       environment: dev
-      node_version: "24"
+      node_version: '24'
   deploy_dev:
     name: Deploy dev
     needs: verify
@@ -33,7 +33,7 @@ jobs:
       automation_sha: 64b5e00a3d2895a8cba05b040f0d5a0415613d9e
       source_sha: ${{ inputs.sha || github.sha }}
       environment: dev
-      node_version: "24"
+      node_version: '24'
     secrets:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       SMOKE_BYPASS: ${{ secrets.SMOKE_BYPASS }}

@@ -1,11 +1,11 @@
 /** Exercise the actual packaged functions with payments disabled and all upstream fetches forbidden.
  * @file
  */
-import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
 
-for (const name of ["status", "payments", "webhook"]) {
+for (const name of ['status', 'payments', 'webhook']) {
   const path = resolve(
     `dist/_ci/functions/api/demo/${name}.func/api/demo/${name}.js`,
   );
@@ -30,12 +30,12 @@ for (const name of ["status", "payments", "webhook"]) {
   `;
   const output = execFileSync(
     process.execPath,
-    ["--input-type=module", "-e", probe, path],
+    ['--input-type=module', '-e', probe, path],
     {
-      env: { ...process.env, DEMO_ENABLED: "false" },
-      encoding: "utf8",
+      env: { ...process.env, DEMO_ENABLED: 'false' },
+      encoding: 'utf8',
       timeout: 15_000,
     },
   );
-  assert.equal(output, "");
+  assert.equal(output, '');
 }
