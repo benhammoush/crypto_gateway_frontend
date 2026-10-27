@@ -11,6 +11,39 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it.each([
+  [
+    '22222222-2222-4222-8222-222222222222',
+    ' Request ID: 22222222-2222-4222-8222-222222222222.',
+  ],
+  ['secret-or-malformed-reference', ''],
+  ['22222222-2222-4222-8222-222222222222\n', ''],
+  [null, ''],
+])(
+  'shows only a validated support reference: %s',
+  async (requestId, suffix) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'INTERNAL_ERROR',
+              message: 'Unable to complete request.',
+              requestId,
+            },
+          }),
+          { status: 500 },
+        ),
+      ),
+    );
+    await expect(request('http://localhost/fixture')).rejects.toMatchObject({
+      code: 'INTERNAL_ERROR',
+      message: `Unable to complete request.${suffix}`,
+    });
+  },
+);
+
 it('combines caller cancellation with the request deadline for stalled polling', async () => {
   const caller = new AbortController();
   const deadline = new AbortController();
