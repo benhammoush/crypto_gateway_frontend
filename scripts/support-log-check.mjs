@@ -43,7 +43,7 @@ async function json(response) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-/** Read only selected dev project metadata or its selected encrypted variable.
+/** Read only the verified dev project's metadata or in-memory environment values.
  * @param path - Internally constructed Vercel path.
  * @param token - Existing dev Vercel credential, kept in memory.
  * @param fetcher - Injectable transport with no retries.
@@ -117,16 +117,28 @@ export async function checkSupportLog(env, fetcher = globalThis.fetch) {
     entry.type === 'encrypted' && /^[a-zA-Z0-9_-]+$/.test(entry.id ?? ''),
     'EXISTING_KEY_NOT_READABLE_NO_CHANGES',
   );
-  const secret = await readVercel(
-    `/v1/projects/${env.VERCEL_PROJECT_ID}/env/${entry.id}${suffix}`,
+  // Vercel's per-ID operation can omit encrypted values; use its CLI-compatible read.
+  const values = await readVercel(
+    `/v10/projects/${env.VERCEL_PROJECT_ID}/env${suffix}&target=production&decrypt=true&source=vercel-cli:pull`,
     env.VERCEL_TOKEN,
     fetcher,
   );
+  requireValue(
+    Array.isArray(values.envs),
+    'EXISTING_KEY_NOT_READABLE_NO_CHANGES',
+  );
+  const selected = values.envs.filter((value) => value.id === entry.id);
+  requireValue(selected.length === 1, 'EXISTING_KEY_NOT_READABLE_NO_CHANGES');
+  const secret = selected[0];
   requireValue(
     secret.key === merchantKey &&
       secret.id === entry.id &&
       secret.type === 'encrypted' &&
       secret.decrypted === true &&
+      !secret.gitBranch &&
+      (Array.isArray(secret.target) ? secret.target : [secret.target]).includes(
+        'production',
+      ) &&
       typeof secret.value === 'string' &&
       /^[\x21-\x7e]{16,512}$/.test(secret.value),
     'EXISTING_KEY_NOT_READABLE_NO_CHANGES',
@@ -181,23 +193,41 @@ export async function checkSupportLog(env, fetcher = globalThis.fetch) {
   }
 }
 
+/** Retain only allowlisted result fields, never provider responses or credentials.
+ * @param result - Internally constructed success or classified failure record.
+ */
+function recordResult(result) {
+  writeFileSync(
+    'support-log-check.json',
+    `${JSON.stringify(result, null, 2)}\n`,
+  );
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
+      `## Dev synthetic support log check\n\n${JSON.stringify(result)}\n\nNo payment was attempted. Do not retry automatically. A confirmed reference still needs complete-event inspection in restricted Cloudflare stored logs.\n`,
+    );
+  }
+}
+
 if (
   process.argv[1] &&
   pathToFileURL(process.argv[1]).href === import.meta.url
 ) {
   try {
     const result = await checkSupportLog(process.env);
-    writeFileSync(
-      'support-log-check.json',
-      `${JSON.stringify(result, null, 2)}\n`,
-    );
-    appendFileSync(
-      process.env.GITHUB_STEP_SUMMARY,
-      `## Dev synthetic support log check\n\n${JSON.stringify(result)}\n\nNo payment was attempted. Inspect this reference and complete event metadata in restricted Cloudflare stored logs before accepting collection.\n`,
-    );
+    recordResult(result);
   } catch (error) {
     const code =
       error instanceof CheckError ? error.message : 'CHECK_FAILED_NO_RETRY';
+    try {
+      recordResult({
+        code,
+        timeUtc: new Date().toISOString(),
+        hostedPrivacyAccepted: false,
+      });
+    } catch {
+      process.stderr.write('Dev log check: EVIDENCE_WRITE_FAILED.\n');
+    }
     process.stderr.write(
       `Dev log check: ${code}. Do not retry automatically.\n`,
     );

@@ -2,7 +2,9 @@
  * @file
  */
 import { expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { checkSupportLog } from '../../scripts/support-log-check.mjs';
@@ -52,7 +54,16 @@ function fixture() {
       name: 'crypto-gateway-dev',
       env: [entry],
     },
-    { ...entry, decrypted: true, value: merchantToken },
+    {
+      envs: [
+        { ...entry, decrypted: true, value: merchantToken },
+        {
+          id: 'env_unrelated',
+          key: 'UNRELATED_DEV_SECRET',
+          value: 'fixture-unrelated-secret',
+        },
+      ],
+    },
     { data: { service: 'crypto_gateway_backend', version: '0.3.1' } },
     { error: { code: 'SUPPORT_LOG_CHECK', requestId } },
   ];
@@ -74,13 +85,13 @@ function transport(bodies = fixture()) {
   });
 }
 
-it('reads one selected key and sends exactly one dev synthetic POST, exporting no credentials', async () => {
+it('reads dev values in memory and sends one synthetic POST using only the selected key', async () => {
   const fetcher = transport();
   const result = await checkSupportLog(environment(), fetcher);
   expect(fetcher).toHaveBeenCalledTimes(4);
   expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
     'https://api.vercel.com/v9/projects/prj_dev?teamId=team_fixture',
-    'https://api.vercel.com/v1/projects/prj_dev/env/env_fixture?teamId=team_fixture',
+    'https://api.vercel.com/v10/projects/prj_dev/env?teamId=team_fixture&target=production&decrypt=true&source=vercel-cli:pull',
     `${gateway}/health`,
     `${gateway}/v1/support/log-check?private=${result.privacyCanary}`,
   ]);
@@ -108,7 +119,7 @@ it('reads one selected key and sends exactly one dev synthetic POST, exporting n
     hostedPrivacyAccepted: false,
   });
   expect(JSON.stringify(result)).not.toMatch(
-    /fixture-provider-token|fixture-merchant-token|DEMO_MERCHANT_API_KEY/,
+    /fixture-provider-token|fixture-merchant-token|fixture-unrelated-secret|DEMO_MERCHANT_API_KEY/,
   );
 });
 
@@ -163,9 +174,11 @@ it('rejects mismatched projects and missing, ambiguous, branch-specific or unrea
     { decrypted: false },
     { value: undefined },
     { value: 'bad\ncredential' },
+    { gitBranch: 'branch' },
+    { target: ['preview'] },
   ]) {
     const bodies = fixture();
-    bodies[1] = { ...bodies[1], ...change };
+    bodies[1].envs[0] = { ...bodies[1].envs[0], ...change };
     const fetcher = transport(bodies);
     await expect(checkSupportLog(environment(), fetcher)).rejects.toThrow(
       'EXISTING_KEY_NOT_READABLE_NO_CHANGES',
@@ -182,6 +195,22 @@ it('stops on denied provider reads without a fallback, secret output or POST', a
     'VERCEL_READ_HTTP_403',
   );
   expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+it('rejects absent or duplicate selected IDs in the bulk response without submission', async () => {
+  for (const value of [
+    {},
+    { envs: [] },
+    { envs: [fixture()[1].envs[0], fixture()[1].envs[0]] },
+  ]) {
+    const bodies = fixture();
+    bodies[1] = value;
+    const fetcher = transport(bodies);
+    await expect(checkSupportLog(environment(), fetcher)).rejects.toThrow(
+      'EXISTING_KEY_NOT_READABLE_NO_CHANGES',
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  }
 });
 
 it('bounds and cancels oversized metadata', async () => {
@@ -234,21 +263,98 @@ it('never retries an uncertain POST or treats a mismatched reference as accepted
   expect(mismatch).toHaveBeenCalledTimes(4);
 });
 
-it('never prints credential-bearing exceptions from the executable entry point', () => {
+/** Exercise the executable in disposable storage with only synthetic transport data.
+ * @param fetchSource - In-memory transport implementation, never a live fetch.
+ * @param summary - Whether GitHub's summary destination exists.
+ * @returns Captured process output and sanitized evidence.
+ */
+function runCli(fetchSource, summary = false) {
+  const directory = mkdtempSync(join(tmpdir(), 'gateway-log-check-'));
   const module = new URL(
     '../../scripts/support-log-check.mjs',
     import.meta.url,
   );
-  const source = `process.argv[1] = ${JSON.stringify(fileURLToPath(module))}; globalThis.fetch = async () => { throw new Error('private-provider-payload ${providerToken} ${merchantToken}'); }; await import(${JSON.stringify(module.href)});`;
-  const result = spawnSync(
-    process.execPath,
-    ['--input-type=module', '-e', source],
-    { env: environment(), encoding: 'utf8' },
+  try {
+    const source = `process.argv[1] = ${JSON.stringify(fileURLToPath(module))}; ${fetchSource}; await import(${JSON.stringify(module.href)});`;
+    const result = spawnSync(
+      process.execPath,
+      ['--input-type=module', '-e', source],
+      {
+        cwd: directory,
+        env: {
+          ...environment(),
+          ...(summary
+            ? { GITHUB_STEP_SUMMARY: join(directory, 'summary.md') }
+            : {}),
+        },
+        encoding: 'utf8',
+      },
+    );
+    return {
+      ...result,
+      record: JSON.parse(
+        readFileSync(join(directory, 'support-log-check.json'), 'utf8'),
+      ),
+      summary: summary
+        ? readFileSync(join(directory, 'summary.md'), 'utf8')
+        : '',
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+it.each([false, true])(
+  'retains sanitized failure evidence with summary=%s and never exports exceptions',
+  (summary) => {
+    const result = runCli(
+      `globalThis.fetch = async () => { throw new Error('private-provider-payload ${providerToken} ${merchantToken}'); }`,
+      summary,
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('CHECK_FAILED_NO_RETRY');
+    expect(result.record).toMatchObject({
+      code: 'CHECK_FAILED_NO_RETRY',
+      hostedPrivacyAccepted: false,
+    });
+    expect(result.record).not.toHaveProperty('requestId');
+    expect(
+      result.stdout +
+        result.stderr +
+        JSON.stringify(result.record) +
+        result.summary,
+    ).not.toMatch(
+      /private-provider-payload|fixture-provider-token|fixture-merchant-token/,
+    );
+  },
+);
+
+it('retains an unconfirmed POST failure without credentials or an invented reference', () => {
+  const bodies = fixture();
+  const result = runCli(
+    `const bodies = ${JSON.stringify(bodies)}; let index = 0; globalThis.fetch = async (_, options) => { if (options.method === 'POST') throw new Error('${merchantToken} ${providerToken} fixture-unrelated-secret'); return Response.json(bodies[index++]); }`,
+    true,
   );
   expect(result.status).toBe(1);
-  expect(result.stderr).toContain('CHECK_FAILED_NO_RETRY');
-  expect(result.stdout + result.stderr).not.toMatch(
-    /private-provider-payload|fixture-provider-token|fixture-merchant-token/,
+  expect(result.record.code).toBe('LOG_CHECK_UNCONFIRMED_NO_RETRY');
+  expect(result.record).not.toHaveProperty('requestId');
+  expect(JSON.stringify(result)).not.toMatch(
+    /fixture-merchant-token|fixture-provider-token|fixture-unrelated-secret/,
+  );
+});
+
+it('writes a successful reference without a summary destination or unrelated dev secrets', () => {
+  const result = runCli(
+    `const bodies = ${JSON.stringify(fixture())}; let index = 0; globalThis.fetch = async () => { const current = index++; return Response.json(bodies[current], { status: current === 3 ? 500 : 200, headers: current === 3 ? { 'x-request-id': '${requestId}' } : {} }); }`,
+  );
+  expect(result.status).toBe(0);
+  expect(result.record).toMatchObject({
+    requestId,
+    code: 'SUPPORT_LOG_CHECK',
+    hostedPrivacyAccepted: false,
+  });
+  expect(JSON.stringify(result)).not.toMatch(
+    /fixture-merchant-token|fixture-provider-token|fixture-unrelated-secret/,
   );
 });
 
@@ -273,4 +379,5 @@ it('keeps the manual workflow main-only, dev-only, pinned, serialized and free o
   for (const action of workflow.matchAll(/uses: (\S+)/g))
     expect(action[1]).toMatch(/@[a-f0-9]{40}$/);
   expect(workflow).toContain('path: support-log-check.json');
+  expect(workflow).toContain('if: ${{ !cancelled() }}');
 });

@@ -67,13 +67,19 @@ environment and existing dev deployment lock without creating a deployment. Supp
 the exact reviewed main `sha` and `confirm: dev-log-check:<sha>`. Reruns are rejected;
 a failed or uncertain check is not retried automatically.
 
-The check validates the isolated Vercel dev project, reads only its existing encrypted
-`DEMO_MERCHANT_API_KEY` for the project's production slot (the logical dev site), and
-keeps the decrypted value in memory. Missing, ambiguous, sensitive/unreadable or denied
+The check validates the isolated Vercel dev project and reads its environment values
+in memory through Vercel's CLI-compatible bulk operation. It selects the existing
+encrypted `DEMO_MERCHANT_API_KEY` by its verified ID and production-slot target (the
+logical dev site), discarding all other values without writing or printing them.
+This reads other dev environment values too; it never reads the separate production
+project. The per-ID API can report decryption but omit the value, so it is not used.
+Missing, ambiguous, sensitive/unreadable or denied
 credentials stop the check; they never trigger rotation, creation, permission changes
 or another credential source. No terminal key input, public test endpoint, dependency
 installation in the credential-bearing step or secret export is needed. The
-[Vercel API contract](https://openapi.vercel.sh) owns the selected-variable read.
+[Vercel API contract](https://openapi.vercel.sh) and
+[CLI environment reader](https://github.com/vercel/vercel/blob/main/packages/cli/src/util/env/get-env-records.ts)
+describe the bulk read.
 
 After backend health/version verification, exactly one request is sent to the fixed
 dev backend's `POST /v1/support/log-check`. It intentionally returns HTTP 500 with
@@ -83,7 +89,10 @@ counters and the synthetic log are affected. Query/header/body canaries support
 inspection of complete stored-event metadata without exporting credentials.
 
 The job summary and seven-day `dev-support-log-check` artifact contain only source,
-time, Request ID, synthetic canary and fixed classification. They do not certify
+time, Request ID, synthetic canary and fixed classification. Failed checks retain
+only their classified failure, time and unaccepted privacy flag, without a raw error
+or invented reference. Artifact upload also runs after a failed check, but not after
+cancellation. These records do not certify
 collection, retention or privacy. Match the reference in restricted Cloudflare stored
 logs and inspect the complete event for credentials, checkout tokens and canary leakage
 before accepting hosted lookup, following the backend's `docs/support.md`. Confirm

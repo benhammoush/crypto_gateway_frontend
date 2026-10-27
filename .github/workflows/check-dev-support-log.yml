@@ -46,6 +46,7 @@ jobs:
           VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Retain only the safe lookup reference
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: dev-support-log-check
