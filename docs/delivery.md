@@ -60,6 +60,37 @@ No remote-setting, credential, compatibility pin, resource or payment state chan
 are part of this migration. Historical sources lacking versioned hooks fail
 closed; immutable artifact recovery remains separately authorized.
 
+## Manual dev support log check
+
+`Check dev support log` runs only by manual dispatch on main, using the native dev
+environment and existing dev deployment lock without creating a deployment. Supply
+the exact reviewed main `sha` and `confirm: dev-log-check:<sha>`. Reruns are rejected;
+a failed or uncertain check is not retried automatically.
+
+The check validates the isolated Vercel dev project, reads only its existing encrypted
+`DEMO_MERCHANT_API_KEY` for the project's production slot (the logical dev site), and
+keeps the decrypted value in memory. Missing, ambiguous, sensitive/unreadable or denied
+credentials stop the check; they never trigger rotation, creation, permission changes
+or another credential source. No terminal key input, public test endpoint, dependency
+installation in the credential-bearing step or secret export is needed. The
+[Vercel API contract](https://openapi.vercel.sh) owns the selected-variable read.
+
+After backend health/version verification, exactly one request is sent to the fixed
+dev backend's `POST /v1/support/log-check`. It intentionally returns HTTP 500 with
+`SUPPORT_LOG_CHECK`; this is not a payment failure. No payments, wallet submissions,
+settlement changes, provider writes or deployments are requested. Only rate-limit
+counters and the synthetic log are affected. Query/header/body canaries support
+inspection of complete stored-event metadata without exporting credentials.
+
+The job summary and seven-day `dev-support-log-check` artifact contain only source,
+time, Request ID, synthetic canary and fixed classification. They do not certify
+collection, retention or privacy. Match the reference in restricted Cloudflare stored
+logs and inspect the complete event for credentials, checkout tokens and canary leakage
+before accepting hosted lookup, following the backend's `docs/support.md`. Confirm
+the active backend source separately; a health version is not source identity.
+
+## Hosted targets
+
 Local → dev → production, no staging. Independent frontend projects/aliases, server-only example credentials, API origins and deployment credentials per hosted environment. Production is Devnet-only. Successful main verification automatically starts dev delivery; production requires manual dispatch and native approval, not a boolean enable flag. This local source change does not provision resources, configure secrets or establish hosted acceptance.
 
 Vercel functions in `api/demo` reuse the server-only merchant adapter. Configure `DEMO_ENABLED`, `DEMO_FRONTEND_ORIGIN`, `GATEWAY_ORIGIN`, `DEMO_MERCHANT_API_KEY` and optional `DEMO_WEBHOOK_SECRET` as server runtime values. Never expose them through VITE. The example receiver verifies raw-body HMAC/timestamps but its deduplication is in memory and demonstrates acknowledgment only; real fulfillment needs durable event deduplication.

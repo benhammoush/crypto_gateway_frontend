@@ -1,0 +1,54 @@
+# Sends one confirmed dev-only synthetic log check using the existing server credential.
+# Does not deploy, change credentials, create payments or certify stored-log privacy.
+name: Check dev support log
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact reviewed main commit containing this check
+        type: string
+        required: true
+      confirm:
+        description: 'Type dev-log-check: followed by that exact SHA'
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  check:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: dev
+      deployment: false
+    concurrency:
+      group: deploy-${{ github.repository_owner }}-${{ github.event.repository.name }}-dev
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - name: Send exactly one payment-free synthetic check
+        run: node scripts/support-log-check.mjs
+        env:
+          EXPECTED_SHA: ${{ inputs.sha }}
+          CONFIRM: ${{ inputs.confirm }}
+          LOG_CHECK_ENVIRONMENT: dev
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          OTHER_VERCEL_PROJECT_ID: ${{ vars.OTHER_VERCEL_PROJECT_ID }}
+          TARGET_ORIGIN: ${{ vars.TARGET_ORIGIN }}
+          VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Retain only the safe lookup reference
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dev-support-log-check
+          path: support-log-check.json
+          if-no-files-found: error
+          retention-days: 7
