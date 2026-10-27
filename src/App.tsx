@@ -4,7 +4,13 @@
  */
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { parseUsd, paymentStatus, request, submitSignature } from './api';
+import {
+  ApiError,
+  parseUsd,
+  paymentStatus,
+  request,
+  submitSignature,
+} from './api';
 import { Payment, PROGRESS, Progress } from './types';
 import {
   sendPayment,
@@ -229,10 +235,11 @@ export function Checkout(props: CheckoutProps) {
           );
           return;
         }
-      } catch {
+      } catch (error) {
         if (controller.signal.aborted || terminal.current) return;
         setMessage(
-          'Unable to refresh payment status. Your payment has not been marked failed.',
+          'Unable to refresh payment status. Your payment has not been marked failed.' +
+            (error instanceof ApiError ? error.supportReference : ''),
         );
       }
       if (!controller.signal.aborted && ++polls < MAX_POLLS)
@@ -311,7 +318,8 @@ export function Checkout(props: CheckoutProps) {
       if (!submitted) setProgress(undefined);
       setMessage(
         submitted
-          ? 'Your transaction was submitted. Refresh status; do not pay again.'
+          ? 'Your transaction was submitted. Refresh status; do not pay again.' +
+              (error instanceof ApiError ? error.supportReference : '')
           : error instanceof Error
             ? error.message
             : 'Wallet approval was not completed.',

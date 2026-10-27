@@ -14,10 +14,12 @@ export class ApiError extends Error {
   /** Retain the public message and code for UI error handling.
    * @param message - Public explanation safe to show in checkout.
    * @param code - Gateway error code for recovery decisions.
+   * @param supportReference - Validated reference suffix, or empty for non-gateway failures.
    */
   constructor(
     message: string,
     public code: string,
+    public supportReference = '',
   ) {
     super(message);
   }
@@ -48,13 +50,24 @@ export async function request<T>(
   });
   const body = (await response.json()) as {
     data?: T;
-    error?: { message: string; code: string };
+    error?: { message: string; code: string; requestId?: unknown };
   };
-  if (!response.ok || !body.data)
+  if (!response.ok || !body.data) {
+    const reference = body.error?.requestId;
+    const suffix =
+      typeof reference === 'string' &&
+      reference.length === 36 &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        reference,
+      )
+        ? ` Request ID: ${reference}.`
+        : '';
     throw new ApiError(
-      body.error?.message ?? 'The request could not be completed.',
+      (body.error?.message ?? 'The request could not be completed.') + suffix,
       body.error?.code ?? 'UNAVAILABLE',
+      suffix,
     );
+  }
   return body.data;
 }
 

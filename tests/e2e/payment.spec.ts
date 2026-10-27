@@ -14,6 +14,45 @@ import {
 const diagnosticsEnabled =
   loadEnv('development', process.cwd(), 'VITE_').VITE_APP_ENV === 'dev';
 
+test('checkout displays a safe support reference without suggesting another payment', async ({
+  page,
+}) => {
+  const id = '33333333-3333-4333-8333-333333333333';
+  const requestId = '22222222-2222-4222-8222-222222222222';
+  await page.route('**/v1/checkout/**', async (route) => {
+    const headers = {
+      'access-control-allow-origin': test.info().project.use.baseURL!,
+      'access-control-allow-headers': 'authorization, content-type',
+      'access-control-allow-methods': 'GET, OPTIONS',
+    };
+    await route.fulfill(
+      route.request().method() === 'OPTIONS'
+        ? { headers, body: '' }
+        : {
+            headers,
+            status: 500,
+            json: {
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: 'The request could not be completed.',
+                requestId,
+              },
+            },
+          },
+    );
+  });
+  await page.goto(`/checkout/${id}#${'a'.repeat(64)}`);
+  await expect(page.getByRole('alert')).toContainText(
+    `Request ID: ${requestId}.`,
+  );
+  await expect(page.getByRole('alert')).toContainText(
+    'Your payment has not been marked failed.',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Pay with Phantom' }),
+  ).toHaveCount(0);
+});
+
 test('wallet failure hints stay dev-only and cannot trigger a second submission', async ({
   page,
 }) => {
