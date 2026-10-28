@@ -20,7 +20,7 @@ export default defineConfig({
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
   testDir: './tests/e2e',
-  use: { baseURL, headless: true },
+  use: { baseURL, headless: true, trace: 'retain-on-failure' },
   webServer: {
     command: `npm run preview -- --port ${port}`,
     url: baseURL,
