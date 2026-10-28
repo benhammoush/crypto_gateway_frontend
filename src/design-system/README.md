@@ -1,7 +1,7 @@
 # Checkout design system
 
-This local module follows the Iris-derived tokens/base/components structure,
-without sharing Iris's palette, components or theme runtime.
+This module owns shared tokens, base styles and reusable components for the
+checkout UI.
 
 - `tokens.css` owns repeated visual values for this dark checkout.
 - `base.css` owns global defaults, existing font loading and focus treatment.

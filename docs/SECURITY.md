@@ -1,30 +1,62 @@
-# Security limitations
+# Frontend security rules
 
-Devnet demonstration only. Merchant API credentials and webhook signing secrets belong in the server adapter, never browser configuration.
+This is a **Devnet demonstration**, not a mainnet or real-funds payment product.
 
-Browser environment exposure is explicitly limited to `VITE_APP_ENV` and
-`VITE_API_ORIGIN`, not the entire `VITE_` prefix. The build guard tolerates only the
-exact provider-injected `VITE_VERCEL_OBSERVABILITY_CLIENT_CONFIG` metadata key in
-addition to those application inputs; its value is not validated, trusted or exposed
-to the browser. All other unexpected `VITE_*` keys still fail the build. Do not add
-merchant/provider secrets to public inputs or broaden this exception to a prefix.
+## Keep secrets out of the browser
 
-The frontend uses pinned Solana web3.js 3.1.0, removing the inherited v1 jayson/stream-json/uuid advisory chain without transitive overrides. Phantom's direct submission API receives a synchronous-serializing `VersionedTransaction` wrapping a legacy message, preserving the legacy wire format without an asynchronous serializer or automatic fallback. Automated message/RPC/browser checks do not replace real Phantom Devnet acceptance. Run a fresh dependency audit before activation; CI blocks high/critical advisories, and passing it is not a claim of zero advisories.
+Merchant API keys, provider credentials and webhook signing secrets belong on the
+server. Checkout tokens are bearer secrets: keep them out of analytics and logs,
+preserve the no-referrer policy, and do not share checkout URLs when asking for help.
 
-The example is not an authenticated merchant dashboard. Origin checks do not prevent bots from calling a public demo. Configure provider-native abuse controls before activation. In-memory webhook acknowledgment is not a fulfillment ledger.
+The only public application settings are `VITE_APP_ENV` and `VITE_API_ORIGIN`.
+The build guard also tolerates the exact provider-injected
+`VITE_VERCEL_OBSERVABILITY_CLIENT_CONFIG` metadata key, but does not validate,
+trust or expose its value to the browser. Every other unexpected `VITE_*` key is
+rejected. Do not broaden that exception to a prefix or put secrets in public inputs.
 
-Payment-creation failures may display a fixed, allowlisted gateway error code and
-a validated UUID v4 request ID for support correlation. The adapter never forwards
-upstream messages, URLs or arbitrary response fields. Unknown/malformed errors
-keep the generic fallback; diagnostics do not prove whether a payment was created
-and do not trigger an automatic retry.
+## Wallet safety
 
-Checkout API errors also display a validated UUID v4 request ID when available,
-including alongside the existing status-refresh and uncertain-submission warnings.
-References are correlation labels, not credentials or proof of settlement. Wallet
-and transport failures may have no gateway reference. Do not share checkout URLs
-or tokens when asking for support.
+`sendPayment` passes a `VersionedTransaction` containing a legacy message to
+Phantom's `signAndSendTransaction`. The wrapper's `serialize()` method must remain
+synchronous. Keep the legacy wire format; do not add an asynchronous serializer,
+fallback submission or automatic wallet retry.
 
-Manual wallet acceptance, hosted environment protections, strict browser security policy for selected origins, webhook raw-body behavior and recovery remain release prerequisites. Checkout capabilities are bearer secrets; exclude them from analytics/logging and keep the no-referrer policy.
+Tests do not replace real Phantom Devnet acceptance. If submission is uncertain,
+do not offer another transfer just because the UI or network reported an error.
 
-Only `VITE_APP_ENV=dev` collects and displays additional wallet-failure hints. Fixed categories are inferred from bounded top-level or `data.message` text; raw messages, provider payloads and URLs are never displayed, logged or saved to tab storage. Rounded timing measures wallet wait and time since the blockhash response, not the blockhash's actual chain age or validity. Hints, timing and quote-expiry state do not prove submission or identify the cause conclusively. Stored details are validated and rebuilt from fixed fields; local and production do not collect or render them. No fallback submission or automatic wallet retry is added, and uncertain-submission guards remain in force.
+Only `VITE_APP_ENV=dev` collects and displays extra wallet-failure hints. They use
+fixed categories inferred from bounded top-level or `data.message` fields. Raw
+messages, URLs and provider payloads are never displayed, logged or saved to tab
+storage. Stored fields are validated and rebuilt from an allowlist. Local and
+production do not collect or render these details.
+
+Rounded timing hints measure wallet wait and time since a blockhash response, not
+the blockhash's actual chain age or validity. Hints, quote expiry and timing do not
+prove submission or its cause. Uncertain-submission guards remain in force.
+
+## Error messages
+
+Payment-creation errors may display a fixed, allowed gateway error code and
+validated UUID v4 Request ID. The server adapter does not forward upstream
+messages, URLs or arbitrary fields. Unknown/malformed errors use the generic
+fallback and never trigger an automatic retry.
+
+Checkout API errors may also show a validated Request ID beside status-refresh or
+uncertain-submission warnings. Wallet/network failures may have no gateway
+reference. A reference is not a credential, proof of settlement or proof that
+creation failed.
+
+## Demo limits and release checks
+
+The demo is not an authenticated merchant dashboard. Origin checks do not stop
+bots; configure provider-native abuse controls. In-memory webhook acknowledgement
+is not a fulfillment ledger.
+
+Before release, verify wallet behavior, hosted protection/isolation, a strict
+browser security policy for selected origins, raw-body webhook handling and
+recovery. Run a fresh dependency audit; CI blocks high/critical advisories, but a
+pass does not mean there are no advisories.
+
+Dependency versions live in `package.json` and the lockfile. Solana web3.js 3.1.0
+replaced the v1 jayson/stream-json/uuid advisory chain without transitive overrides.
+Preserve the reviewed synchronous wallet/message behavior when upgrading.
