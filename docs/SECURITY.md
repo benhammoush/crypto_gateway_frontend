@@ -16,9 +16,10 @@ rejected. Do not broaden that exception to a prefix or put secrets in public inp
 
 ## Wallet safety
 
-Phantom's direct submission API receives a synchronously serialized
-`VersionedTransaction` containing a legacy message. Keep the legacy wire format;
-do not add an asynchronous serializer, fallback submission or automatic wallet retry.
+`sendPayment` passes a `VersionedTransaction` containing a legacy message to
+Phantom's `signAndSendTransaction`. The wrapper's `serialize()` method must remain
+synchronous. Keep the legacy wire format; do not add an asynchronous serializer,
+fallback submission or automatic wallet retry.
 
 Tests do not replace real Phantom Devnet acceptance. If submission is uncertain,
 do not offer another transfer just because the UI or network reported an error.
