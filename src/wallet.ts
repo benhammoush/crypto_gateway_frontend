@@ -207,14 +207,28 @@ export class WalletSubmissionUncertain extends Error {
 /** Failure classified as occurring without a submitted payment from this request. */
 export class WalletNotSubmitted extends Error {}
 
+/** Connect the existing Phantom provider without requesting or preparing a transfer.
+ * @returns The wallet-approved base58 address.
+ * @throws If Phantom is missing, declines connection or returns an invalid key.
+ */
+export async function connectWallet(): Promise<string> {
+  const wallet = window.phantom?.solana;
+  if (!wallet?.isPhantom)
+    throw new Error('Open or install Phantom to connect.');
+  const connected = await wallet.connect();
+  return new PublicKey(connected.publicKey.toBase58()).toBase58();
+}
+
 /** Build transfer + signer-bound memo; the gateway also validates wallet-added compute settings.
  * @param payment - Backend-issued payment quote with integer lamports.
  * @param token - Checkout capability authorizing the scoped gateway RPC.
+ * @param expectedAddress - Address shown after connection; prevents approval from a silently switched account.
  * @returns The wallet's candidate signature, never proof of settlement.
  */
 export async function sendPayment(
   payment: Payment,
   token: string,
+  expectedAddress?: string,
 ): Promise<string> {
   const wallet = window.phantom?.solana;
   let walletTransaction: VersionedTransaction;
@@ -268,6 +282,10 @@ export async function sendPayment(
       throw new Error('The configured network is not Solana Devnet.');
     const connected = await wallet.connect();
     const publicKey = new PublicKey(connected.publicKey.toBase58());
+    if (expectedAddress && publicKey.toBase58() !== expectedAddress)
+      throw new Error(
+        'The wallet account changed. Reload and reconnect before paying.',
+      );
     const latest = await connection.getLatestBlockhash('finalized');
     blockhashFetchedAt = performance.now();
     if (Date.now() >= payment.expiresAt)

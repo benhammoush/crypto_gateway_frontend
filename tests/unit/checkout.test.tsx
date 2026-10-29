@@ -8,14 +8,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanup,
   fireEvent,
-  render,
+  render as renderReact,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { parseUsd, paymentStatus, submitSignature } from '../../src/api';
 import { Checkout } from '../../src/App';
 import { Payment, PROGRESS } from '../../src/types';
-import { sendPayment, WalletSubmissionUncertain } from '../../src/wallet';
+import {
+  connectWallet,
+  sendPayment,
+  WalletSubmissionUncertain,
+} from '../../src/wallet';
+import { ConfigProvider } from '../../src/design-system';
+import type { ReactNode } from 'react';
 
 vi.mock('../../src/api', async (original) => ({
   ...(await original<typeof import('../../src/api')>()),
@@ -25,11 +32,37 @@ vi.mock('../../src/api', async (original) => ({
 vi.mock('../../src/wallet', async (original) => ({
   ...(await original<typeof import('../../src/wallet')>()),
   sendPayment: vi.fn(),
+  connectWallet: vi.fn(),
 }));
 
 let payment: Payment;
 
+/** Use the production motion setting so jsdom does not wait for unavailable CSS transitions.
+ * @param ui - Checkout tree under test.
+ * @returns The mounted checkout and cleanup helpers.
+ */
+function render(ui: ReactNode) {
+  return renderReact(
+    <ConfigProvider theme={{ token: { motion: false } }}>{ui}</ConfigProvider>,
+  );
+}
+
+/** Connect first, then request one separate wallet-approved payment. */
+async function pay() {
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Connect wallet' }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Pay with SOL' })
+        .disabled,
+    ).toBe(false),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Pay with SOL' }));
+}
+
 beforeEach(() => {
+  vi.mocked(connectWallet).mockResolvedValue('1'.repeat(32));
   const now = Date.now();
   payment = {
     id: 'fixture-payment',
@@ -71,6 +104,131 @@ describe('reference form', () => {
 });
 
 describe('checkout', () => {
+  it('connects without sending funds and keeps payment approval separate', async () => {
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    render(<Checkout id={payment.id} token="token" />);
+    const connect = await screen.findByRole('button', {
+      name: 'Connect wallet',
+    });
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Pay with SOL' })
+        .disabled,
+    ).toBe(true);
+    fireEvent.click(connect);
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', { name: 'Pay with SOL' })
+          .disabled,
+      ).toBe(false),
+    );
+    expect(connectWallet).toHaveBeenCalledOnce();
+    expect(sendPayment).not.toHaveBeenCalled();
+    expect(submitSignature).not.toHaveBeenCalled();
+    expect(
+      sessionStorage.getItem(
+        `crypto_gateway:signature:${payment.id}:uncertain`,
+      ),
+    ).toBeNull();
+  });
+
+  it('does not expose wallet connection errors or offer payment before connection succeeds', async () => {
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    vi.mocked(connectWallet).mockRejectedValue(
+      new Error('private wallet details'),
+    );
+    render(<Checkout id={payment.id} token="token" />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Connect wallet' }),
+    );
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'No payment was requested.',
+    );
+    expect(document.body.textContent).not.toContain('private wallet details');
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Pay with SOL' })
+        .disabled,
+    ).toBe(true);
+    expect(sendPayment).not.toHaveBeenCalled();
+  });
+
+  it('can dismiss and reopen the submitted receipt without sending again', async () => {
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    vi.mocked(sendPayment).mockResolvedValue('1'.repeat(64));
+    vi.mocked(submitSignature).mockImplementation(() => new Promise(() => {}));
+    render(<Checkout id={payment.id} token="token" />);
+    await pay();
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Transaction submitted',
+    });
+    expect(
+      within(dialog).getByText(
+        'Your payment was sent. Waiting for verification.',
+      ),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByRole<HTMLAnchorElement>('link', {
+        name: /View transaction/,
+      }).href,
+    ).toBe(`https://explorer.solana.com/tx/${'1'.repeat(64)}?cluster=devnet`);
+    fireEvent.click(
+      within(dialog).getAllByRole('button', { name: 'Close' }).at(-1)!,
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'View payment status' }),
+    );
+    await screen.findByRole('dialog', { name: 'Transaction submitted' });
+    expect(sendPayment).toHaveBeenCalledExactlyOnceWith(
+      payment,
+      'token',
+      '1'.repeat(32),
+    );
+    expect(submitSignature).toHaveBeenCalledOnce();
+  });
+
+  it('does not re-enable payment when the server already recorded a rejected attempt', async () => {
+    vi.mocked(paymentStatus).mockResolvedValue({
+      ...payment,
+      attempts: [
+        {
+          signature: '1'.repeat(64),
+          state: 'rejected',
+          reason: 'INVALID_TRANSFER',
+        },
+      ],
+    });
+    render(<Checkout id={payment.id} token="token" />);
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(
+      within(dialog).getAllByRole('button', { name: 'Close' }).at(-1)!,
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+    expect(sendPayment).not.toHaveBeenCalled();
+  });
+
+  it('keeps the backend quote exact and recipient read-only with no EVM defaults', async () => {
+    vi.mocked(paymentStatus).mockResolvedValue({
+      ...payment,
+      lamports: '9007199254740993',
+      displaySol: '9007199.254740993',
+    });
+    render(<Checkout id={payment.id} token="token" />);
+    expect(await screen.findByText('9007199.254740993 SOL')).toBeTruthy();
+    expect(screen.getByText(payment.recipient, { exact: false })).toBeTruthy();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/ETH|0xrecipient/);
+    expect(
+      within(
+        screen.getByRole('list', { name: 'Payment progress' }),
+      ).getAllByRole('listitem'),
+    ).toHaveLength(3);
+    expect(document.querySelector('[aria-current="step"]')?.textContent).toBe(
+      'Wallet approval',
+    );
+    expect(sendPayment).not.toHaveBeenCalled();
+  });
   it('shows dev-only hints and timing after a failure and reload without another submission', async () => {
     vi.stubEnv('VITE_APP_ENV', 'dev');
     const details = {
@@ -89,7 +247,7 @@ describe('checkout', () => {
       ),
     );
     const first = render(<Checkout id={payment.id} token="token" />);
-    fireEvent.click(await screen.findByText('Pay with Phantom'));
+    await pay();
     expect((await screen.findByRole('status')).textContent).toContain(
       'Dev wallet hint: BLOCKHASH_EXPIRED_OR_MISSING',
     );
@@ -113,7 +271,7 @@ describe('checkout', () => {
     );
     fireEvent.click(screen.getByText('Refresh status'));
     await waitFor(() => expect(paymentStatus).toHaveBeenCalled());
-    expect(screen.queryByText('Pay with Phantom')).toBeNull();
+    expect(screen.queryByText('Pay with SOL')).toBeNull();
     expect(sendPayment).toHaveBeenCalledOnce();
     expect(submitSignature).not.toHaveBeenCalled();
   });
@@ -137,7 +295,7 @@ describe('checkout', () => {
         ),
       );
       const first = render(<Checkout id={payment.id} token="token" />);
-      fireEvent.click(await screen.findByText('Pay with Phantom'));
+      await pay();
       await screen.findByRole('status');
       expect(screen.queryByText(/Dev wallet hint/)).toBeNull();
       expect(
@@ -153,7 +311,7 @@ describe('checkout', () => {
       render(<Checkout id={payment.id} token="token" />);
       await screen.findByRole('status');
       expect(screen.queryByText(/Dev wallet hint/)).toBeNull();
-      expect(screen.queryByText('Pay with Phantom')).toBeNull();
+      expect(screen.queryByText('Pay with SOL')).toBeNull();
       expect(sendPayment).toHaveBeenCalledOnce();
     },
   );
@@ -175,7 +333,7 @@ describe('checkout', () => {
     await screen.findByRole('status');
     expect(screen.queryByText(/secret-provider-payload/)).toBeNull();
     expect(screen.queryByText(/Dev wallet hint/)).toBeNull();
-    expect(screen.queryByText('Pay with Phantom')).toBeNull();
+    expect(screen.queryByText('Pay with SOL')).toBeNull();
     expect(sessionStorage.getItem(`${key}:uncertain`)).toBe('true');
     expect(sendPayment).not.toHaveBeenCalled();
   });
@@ -189,12 +347,12 @@ describe('checkout', () => {
       ),
     );
     const first = render(<Checkout id={payment.id} token="token" />);
-    fireEvent.click(await screen.findByText('Pay with Phantom'));
+    await pay();
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'Check wallet activity before paying again.',
     );
-    expect(screen.queryByText('Pay with Phantom')).toBeNull();
+    expect(screen.queryByText('Pay with SOL')).toBeNull();
     expect(screen.getByRole('status').textContent).toContain(
       'WALLET_RPC_-32603',
     );
@@ -210,7 +368,7 @@ describe('checkout', () => {
     );
     fireEvent.click(screen.getByText('Refresh status'));
     await waitFor(() => expect(paymentStatus).toHaveBeenCalled());
-    expect(screen.queryByText('Pay with Phantom')).toBeNull();
+    expect(screen.queryByText('Pay with SOL')).toBeNull();
     expect(sendPayment).toHaveBeenCalledOnce();
   });
   it('never renders unrecognized stored diagnostics or clears the uncertainty guard', async () => {
@@ -226,7 +384,7 @@ describe('checkout', () => {
       'UNAVAILABLE',
     );
     expect(screen.queryByText(/secret-provider-payload/)).toBeNull();
-    expect(screen.queryByText('Pay with Phantom')).toBeNull();
+    expect(screen.queryByText('Pay with SOL')).toBeNull();
     expect(sessionStorage.getItem(`${key}:uncertain`)).toBe('true');
     expect(sendPayment).not.toHaveBeenCalled();
   });
@@ -263,7 +421,7 @@ describe('checkout', () => {
       new Error('network unavailable'),
     );
     render(<Checkout id={payment.id} token="token" />);
-    fireEvent.click(await screen.findByText('Pay with Phantom'));
+    await pay();
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'Enable session storage before submitting a payment safely.',
@@ -276,7 +434,7 @@ describe('checkout', () => {
       () => new Promise<string>(() => {}),
     );
     const first = render(<Checkout id={payment.id} token="token" />);
-    fireEvent.click(await screen.findByText('Pay with Phantom'));
+    await pay();
     await waitFor(() => expect(sendPayment).toHaveBeenCalledOnce());
     expect(
       sessionStorage.getItem(
@@ -286,10 +444,10 @@ describe('checkout', () => {
     first.unmount();
     render(<Checkout id={payment.id} token="token" />);
     await screen.findByRole('alert');
-    expect(screen.queryByText('Pay with Phantom')).toBeNull();
+    expect(screen.queryByText('Pay with SOL')).toBeNull();
     expect(sendPayment).toHaveBeenCalledOnce();
   });
-  it('contains exactly the four agreed notifications', () => {
+  it('keeps four lifecycle events separate from the three visual stages', () => {
     expect(PROGRESS).toEqual([
       'Awaiting wallet approval',
       'Transaction submitted',
@@ -305,15 +463,20 @@ describe('checkout', () => {
       status: 'verifying',
     });
     render(<Checkout id={payment.id} token="token" />);
-    fireEvent.click(await screen.findByText('Pay with Phantom'));
+    await pay();
     await waitFor(() =>
       expect(
-        screen.getByText('Verifying on-chain').getAttribute('aria-current'),
+        screen
+          .getByRole('listitem', { name: 'On-chain verification' })
+          .getAttribute('aria-current'),
       ).toBe('step'),
     );
     expect(
-      screen.getByText('Payment verified').getAttribute('aria-current'),
+      screen.queryByRole('dialog', { name: 'Payment verified' }),
     ).toBeNull();
+    expect(
+      screen.getByRole('list', { name: 'Payment progress' }).textContent,
+    ).not.toContain('Transaction submitted');
   });
   it('shows verified only from backend settlement', async () => {
     const key = `crypto_gateway:signature:${payment.id}`;
@@ -327,14 +490,20 @@ describe('checkout', () => {
     });
     render(<Checkout id={payment.id} token="token" />);
     expect(
-      await screen.findByText(
-        'Verified testnet transfer. No real funds were used.',
-      ),
+      await screen.findByText('The backend confirmed your payment.'),
     ).toBeTruthy();
     expect(
-      screen.getByText('Payment verified').getAttribute('aria-current'),
+      screen
+        .getByRole('listitem', { name: 'On-chain verification' })
+        .getAttribute('aria-current'),
     ).toBe('step');
-    expect(screen.queryByRole('status')).toBeNull();
+    const explorer = screen.getByRole<HTMLAnchorElement>('link', {
+      name: /View transaction on Solana Explorer/,
+    });
+    expect(explorer.href).toBe(
+      'https://explorer.solana.com/tx/signature?cluster=devnet',
+    );
+    expect(screen.queryByText(/Quote locked/)).toBeNull();
     expect(sessionStorage.getItem(`${key}:walletDiagnostic`)).toBeNull();
     expect(sessionStorage.getItem(`${key}:walletFailure`)).toBeNull();
     expect(sessionStorage.getItem(`${key}:uncertain`)).toBeNull();
@@ -357,7 +526,7 @@ describe('checkout', () => {
         'signature',
       ),
     );
-    expect(screen.queryByText('Pay with Phantom')).toBeNull();
+    expect(screen.queryByText('Pay with SOL')).toBeNull();
     expect(sendPayment).not.toHaveBeenCalled();
   });
   it('does not describe loss of connectivity as failed payment', async () => {
@@ -379,6 +548,6 @@ describe('checkout', () => {
       'textContent',
       'This quote has expired. Do not send a new transfer. If you already paid, contact the merchant.',
     );
-    expect(screen.queryByText('Pay with Phantom')).toBeNull();
+    expect(screen.queryByText('Pay with SOL')).toBeNull();
   });
 });
