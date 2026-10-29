@@ -216,7 +216,11 @@ for (const width of [320, 1440]) {
         await expect(reopen).toBeFocused();
         await expect(customer.locator('.submitted-panel')).toHaveCSS(
           'opacity',
-          '0.4',
+          '1',
+        );
+        await expect(customer.locator('.submitted-panel')).toHaveCSS(
+          'filter',
+          'grayscale(1)',
         );
         await expect(
           page.getByRole('button', { name: 'Pay with SOL' }),

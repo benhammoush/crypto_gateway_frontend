@@ -163,9 +163,12 @@ section[aria-label='Customer'] > .role-label::before {
   position: relative;
 }
 
-.locked-panel,
-.submitted-panel {
+.locked-panel {
   opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.submitted-panel {
   filter: grayscale(1);
 }
 
