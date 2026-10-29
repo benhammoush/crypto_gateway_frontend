@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import {
   ApiError,
   parseUsd,
@@ -11,16 +11,32 @@ import {
   request,
   submitSignature,
 } from './api';
-import { Payment, PROGRESS, Progress } from './types';
+import { Payment, Progress } from './types';
 import {
   sendPayment,
+  connectWallet,
   walletDiagnostic,
   walletFailureDetails,
   WalletNotSubmitted,
   WalletSubmissionUncertain,
 } from './wallet';
 import { readSession, removeSession, saveSession } from './storage';
-import { Notice } from './design-system';
+import { CheckoutLayout } from './CheckoutLayout';
+import { PaymentView } from './PaymentView';
+import { PanelStatus } from './PanelStatus';
+import {
+  Alert,
+  Button,
+  Card,
+  Flex,
+  Form,
+  Input,
+  Result,
+  ReloadOutlined,
+  ShoppingCartOutlined,
+  Typography,
+  WalletOutlined,
+} from './design-system';
 
 const MAX_POLLS = 180;
 
@@ -28,6 +44,8 @@ const MAX_POLLS = 180;
 interface CheckoutProps {
   id: string;
   token: string;
+  business?: ReactNode;
+  checkoutUrl?: string;
 }
 
 /** Render the merchant example and create a checkout through the server-side adapter.
@@ -38,6 +56,12 @@ function Demo() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState<{ cents: number; key: string }>();
+  const [checkout, setCheckout] = useState<{
+    id: string;
+    token: string;
+    url: string;
+  }>();
+  const creating = useRef(false);
   const [availability, setAvailability] = useState<
     'checking' | 'enabled' | 'disabled' | 'unavailable'
   >('checking');
@@ -65,12 +89,13 @@ function Demo() {
     return () => controller.abort();
   }, []);
 
-  /** Create the payment from validated form input and navigate to its checkout.
+  /** Create a payment from validated input and activate the inline customer checkout.
    * @param event - Submission event whose default navigation must be prevented.
    */
   async function pay(event: FormEvent) {
     event.preventDefault();
-    if (busy || availability !== 'enabled') return;
+    if (creating.current || checkout || availability !== 'enabled') return;
+    creating.current = true;
     setError('');
     setBusy(true);
     try {
@@ -91,72 +116,180 @@ function Demo() {
       const destination = new URL(result.checkoutUrl);
       if (
         destination.origin !== location.origin ||
+        destination.search ||
+        destination.username ||
+        destination.password ||
         !/^\/checkout\/[a-f0-9-]{36}$/.test(destination.pathname)
       )
         throw new Error(
           'The demo returned an unexpected checkout destination.',
         );
-      location.assign(destination.href);
+      const capability = destination.hash.slice(1);
+      if (!/^[a-f0-9]{64}$/.test(capability))
+        throw new Error('The demo returned an invalid checkout link.');
+      const id = destination.pathname.slice('/checkout/'.length);
+      if (!saveSession(`crypto_gateway:session:${id}`, capability))
+        throw new Error(
+          'Enable session storage before opening a checkout safely.',
+        );
+      setCheckout({ id, token: capability, url: destination.href });
+      history.replaceState(null, '', destination.pathname);
     } catch (error) {
       setError(
         error instanceof Error ? error.message : 'Unable to create payment.',
       );
     } finally {
+      creating.current = false;
       setBusy(false);
     }
   }
 
-  return (
-    <section className="card">
-      <p className="eyebrow">INTEGRATION EXAMPLE</p>
-      <h1>
-        One amount.
-        <br />
-        <span>One payment.</span>
-      </h1>
-      <p className="description">
-        Enter a USD amount. The gateway locks a SOL quote and verifies your
-        transfer on-chain.
-      </p>
-      <form onSubmit={(event) => void pay(event)}>
-        <label htmlFor="amount">Amount in USD</label>
-        <div className="amount">
-          <span>$</span>
-          <input
-            id="amount"
-            inputMode="decimal"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            disabled={busy || availability !== 'enabled'}
-            autoComplete="off"
-            required
-          />
-          <span className="currency">USD</span>
+  const business = (
+    <div className="panel-frame">
+      <div
+        className={checkout ? 'locked-panel' : undefined}
+        {...(checkout ? { inert: '' } : {})}
+      >
+        <Card
+          className="checkout-card"
+          size="small"
+          styles={{
+            header: { paddingBlock: 12 },
+            title: { whiteSpace: 'normal' },
+          }}
+          title={
+            <Flex align="center" gap="small">
+              <span className="panel-icon" aria-hidden="true">
+                <ShoppingCartOutlined />
+              </span>
+              <span role="heading" aria-level={2}>
+                Customer’s cart
+              </span>
+            </Flex>
+          }
+        >
+          <Flex vertical gap="small">
+            <Typography.Paragraph type="secondary" className="cart-explanation">
+              In a real store, it comes automatically from the customer’s cart.
+            </Typography.Paragraph>
+            <form onSubmit={(event) => void pay(event)}>
+              <Form component={false} layout="vertical">
+                <Form.Item
+                  label="Cart total (USD)"
+                  htmlFor="amount"
+                  style={{ marginBottom: 14 }}
+                >
+                  <Input
+                    id="amount"
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    disabled={!!checkout || busy || availability !== 'enabled'}
+                    autoComplete="off"
+                    required
+                    prefix="$"
+                    suffix="USD"
+                  />
+                </Form.Item>
+                <Button
+                  block
+                  type="primary"
+                  htmlType="submit"
+                  aria-label={
+                    busy ? 'Creating payment link…' : 'Create payment link'
+                  }
+                  aria-busy={busy}
+                  loading={busy}
+                  disabled={!!checkout || busy || availability !== 'enabled'}
+                >
+                  {busy ? 'Creating payment link…' : 'Create payment link'}
+                </Button>
+              </Form>
+            </form>
+            {availability !== 'enabled' && (
+              <Alert
+                role="status"
+                type="info"
+                message={
+                  availability === 'checking'
+                    ? 'Checking demo availability…'
+                    : availability === 'disabled'
+                      ? 'Demo payments are disabled.'
+                      : 'Demo availability could not be checked. Payments remain unavailable; reload to try again.'
+                }
+              />
+            )}
+            {error && <Alert type="error" role="alert" message={error} />}
+          </Flex>
+        </Card>
+      </div>
+      {checkout && <PanelStatus state="created" />}
+    </div>
+  );
+  return checkout ? (
+    <Checkout
+      id={checkout.id}
+      token={checkout.token}
+      checkoutUrl={checkout.url}
+      business={business}
+    />
+  ) : (
+    <CheckoutLayout
+      business={business}
+      created={false}
+      progressAction={
+        <Button type="text" size="small" icon={<ReloadOutlined />} disabled>
+          Refresh status
+        </Button>
+      }
+      customer={
+        <div className="panel-frame">
+          <div className="locked-panel" {...{ inert: '' }}>
+            <Card
+              title={
+                <Flex align="center" gap="small">
+                  <span className="panel-icon" aria-hidden="true">
+                    <WalletOutlined />
+                  </span>
+                  <span>Review &amp; pay</span>
+                </Flex>
+              }
+              size="small"
+              className="checkout-card"
+            >
+              <Flex vertical gap="small">
+                <Typography.Text type="secondary">Cart total</Typography.Text>
+                <Typography.Title
+                  level={3}
+                  className="amount-total"
+                  style={{ margin: 0 }}
+                >
+                  — USD
+                </Typography.Title>
+                <Typography.Text>— SOL</Typography.Text>
+                <Typography.Text type="secondary">
+                  Quote expires in —
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  Network · Solana Devnet
+                </Typography.Text>
+                <Typography.Text type="secondary">Recipient —</Typography.Text>
+                <Flex gap="small">
+                  <Button disabled block>
+                    Connect wallet
+                  </Button>
+                  <Button disabled block>
+                    Pay with SOL
+                  </Button>
+                </Flex>
+                <Typography.Text type="secondary">Reference —</Typography.Text>
+              </Flex>
+            </Card>
+          </div>
+          <PanelStatus state="waiting" />
         </div>
-        <button type="submit" disabled={busy || availability !== 'enabled'}>
-          {busy ? 'Opening checkout…' : 'Pay'}
-          <span aria-hidden="true">↗</span>
-        </button>
-      </form>
-      {availability !== 'enabled' && (
-        <Notice role="status">
-          {availability === 'checking'
-            ? 'Checking demo availability…'
-            : availability === 'disabled'
-              ? 'Demo payments are disabled.'
-              : 'Demo availability could not be checked. Payments remain unavailable; reload to try again.'}
-        </Notice>
-      )}
-      {error && (
-        <Notice tone="error" role="alert">
-          {error}
-        </Notice>
-      )}
-      <p className="footnote">
-        This demo lets you choose the amount. Real applications calculate what
-        is owed on their own backend.
-      </p>
-    </section>
+      }
+    />
   );
 }
 
@@ -166,6 +299,11 @@ function Demo() {
  */
 export function Checkout(props: CheckoutProps) {
   const { id, token } = props;
+  const [walletAddress, setWalletAddress] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [modalOpen, setModalOpen] = useState(true);
+  const submitting = useRef(false);
+  const connectionPending = useRef(false);
   const [payment, setPayment] = useState<Payment>();
   const [progress, setProgress] = useState<Progress>();
   const [message, setMessage] = useState('');
@@ -213,8 +351,10 @@ export function Checkout(props: CheckoutProps) {
           return;
         }
         const signature = candidate.current;
-        const attempt = current.attempts.find(
-          (entry) => entry.signature === signature,
+        const attempt = current.attempts.find((entry) =>
+          signature
+            ? entry.signature === signature
+            : entry.state === 'rejected',
         );
         if (signature && !attempt) {
           setProgress('Transaction submitted');
@@ -261,7 +401,18 @@ export function Checkout(props: CheckoutProps) {
    * The candidate signature then continues preventing duplicate payment during verification.
    */
   async function pay() {
-    if (!payment || busy || candidate.current || uncertain) return;
+    if (
+      !payment ||
+      !walletAddress ||
+      submitting.current ||
+      candidate.current ||
+      uncertain ||
+      payment.attempts.length > 0 ||
+      payment.status !== 'pending' ||
+      payment.expiresAt <= Date.now()
+    )
+      return;
+    submitting.current = true;
     setBusy(true);
     setMessage('');
     setProgress('Awaiting wallet approval');
@@ -275,7 +426,7 @@ export function Checkout(props: CheckoutProps) {
         );
       }
       setUncertain(true);
-      const signature = await sendPayment(payment, token);
+      const signature = await sendPayment(payment, token, walletAddress);
       submitted = true;
       candidate.current = signature;
       if (saveSession(savedKey, signature)) {
@@ -283,6 +434,7 @@ export function Checkout(props: CheckoutProps) {
         setUncertain(false);
       }
       setProgress('Transaction submitted');
+      setModalOpen(true);
       const current = await submitSignature(id, token, signature);
       if (!terminal.current) {
         setPayment(current);
@@ -325,6 +477,7 @@ export function Checkout(props: CheckoutProps) {
             : 'Wallet approval was not completed.',
       );
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -336,113 +489,97 @@ export function Checkout(props: CheckoutProps) {
     payment?.status === 'pending' &&
     remaining > 0 &&
     !candidate.current &&
+    payment.attempts.length === 0 &&
     !uncertain;
+  /** Connect Phantom without requesting a transfer or changing payment recovery state. */
+  async function connect() {
+    if (connectionPending.current || submitting.current || !canPay) return;
+    connectionPending.current = true;
+    setConnecting(true);
+    setMessage('');
+    try {
+      setWalletAddress(await connectWallet());
+    } catch {
+      setMessage(
+        'Unable to connect Phantom. Open or install Phantom and try again. No payment was requested.',
+      );
+    } finally {
+      connectionPending.current = false;
+      setConnecting(false);
+    }
+  }
   return (
-    <section className="card">
-      <p className="eyebrow">HOSTED CHECKOUT</p>
-      <h1>
-        Pay with <span>SOL.</span>
-      </h1>
-      {payment ? (
-        <>
-          <div className="total">
-            ${(payment.usdCents / 100).toFixed(2)} <small>USD</small>
-          </div>
-          <div className="quote">
-            {payment.displaySol} SOL{' '}
-            <span>
-              Quote locked · {Math.floor(remaining / 60)}:
-              {String(remaining % 60).padStart(2, '0')}
-            </span>
-          </div>
-          <dl>
-            <dt>Network</dt>
-            <dd>Solana Devnet</dd>
-            <dt>Recipient</dt>
-            <dd className="address">{payment.recipient}</dd>
-          </dl>
-          {canPay && (
-            <button onClick={() => void pay()} disabled={busy}>
-              {busy ? 'Check your wallet…' : 'Pay with Phantom'}
-              <span aria-hidden="true">↗</span>
-            </button>
-          )}
-        </>
-      ) : (
-        <p className="description">Loading payment…</p>
-      )}
-      <ol className="progress" aria-label="Payment progress" aria-live="polite">
-        {PROGRESS.map((label, index) => (
-          <li
-            key={label}
-            className={
-              progress && index <= PROGRESS.indexOf(progress) ? 'active' : ''
-            }
-            aria-current={label === progress ? 'step' : undefined}
-          >
-            <span>{index + 1}</span>
-            {label}
-          </li>
-        ))}
-      </ol>
-      {progress === 'Payment verified' && (
-        <Notice tone="success">
-          Verified testnet transfer. No real funds were used.
-        </Notice>
-      )}
-      {message && <Notice role="alert">{message}</Notice>}
+    <PaymentView
+      id={id}
+      payment={payment}
+      progress={progress}
+      signature={
+        payment?.signature ??
+        candidate.current ??
+        payment?.attempts[0]?.signature
+      }
+      remaining={remaining}
+      canPay={canPay}
+      busy={busy}
+      walletAddress={walletAddress}
+      connecting={connecting}
+      connect={() => void connect()}
+      pay={() => void pay()}
+      modalOpen={modalOpen}
+      setModalOpen={setModalOpen}
+      business={props.business}
+      checkoutUrl={props.checkoutUrl}
+      refresh={() => {
+        setMessage('');
+        setRound((value) => value + 1);
+      }}
+    >
+      {message && <Alert type="warning" role="alert" message={message} />}
       {uncertain && !busy && !message && progress !== 'Payment verified' && (
-        <Notice role="alert">
-          Wallet submission is uncertain. Check wallet activity and contact the
-          merchant before paying again.
-        </Notice>
+        <Alert
+          type="warning"
+          role="alert"
+          message="Wallet submission is uncertain. Check wallet activity and contact the merchant before paying again."
+        />
       )}
       {uncertain && !busy && progress !== 'Payment verified' && (
-        <Notice role="status">
-          Wallet diagnostic: <code>{diagnostic ?? 'UNAVAILABLE'}</code>. This
-          does not confirm whether a transfer was submitted.
-          <br />
-          Wallet API check: request{' '}
-          {typeof window.phantom?.solana?.request === 'function'
-            ? 'available'
-            : 'unavailable'}
-          ; direct sender{' '}
-          {window.phantom?.solana &&
-          'signAndSendTransaction' in window.phantom.solana &&
-          typeof window.phantom.solana.signAndSendTransaction === 'function'
-            ? 'available'
-            : 'unavailable'}
-          .
-          {import.meta.env.VITE_APP_ENV === 'dev' && walletFailure && (
+        <Alert
+          type="info"
+          role="status"
+          message={
             <>
+              Wallet diagnostic: <code>{diagnostic ?? 'UNAVAILABLE'}</code>.
+              This does not confirm whether a transfer was submitted.
               <br />
-              Dev wallet hint: <code>{walletFailure.reason}</code>.
-              <br />
-              Wallet wait: {walletFailure.walletSeconds}s. Time since blockhash
-              fetched: {walletFailure.blockhashSeconds}s.
-              <br />
-              Quote expired at error:{' '}
-              {walletFailure.quoteExpired ? 'yes' : 'no'}. These details do not
-              prove submission or the cause.
+              Wallet API check: request{' '}
+              {typeof window.phantom?.solana?.request === 'function'
+                ? 'available'
+                : 'unavailable'}
+              ; direct sender{' '}
+              {window.phantom?.solana &&
+              'signAndSendTransaction' in window.phantom.solana &&
+              typeof window.phantom.solana.signAndSendTransaction === 'function'
+                ? 'available'
+                : 'unavailable'}
+              .
+              {import.meta.env.VITE_APP_ENV === 'dev' && walletFailure && (
+                <>
+                  <br />
+                  Dev wallet hint: <code>{walletFailure.reason}</code>.
+                  <br />
+                  Wallet wait: {walletFailure.walletSeconds}s. Time since
+                  blockhash fetched: {walletFailure.blockhashSeconds}s.
+                  <br />
+                  Quote expired at error:{' '}
+                  {walletFailure.quoteExpired ? 'yes' : 'no'}. These details do
+                  not prove submission or the cause.
+                </>
+              )}
             </>
-          )}
-        </Notice>
+          }
+        />
       )}
-      {!busy && progress !== 'Payment verified' && (
-        <button
-          className="secondary"
-          onClick={() => {
-            setMessage('');
-            setRound((value) => value + 1);
-          }}
-        >
-          Refresh status
-        </button>
-      )}
-      <p className="footnote">
-        Payment reference <span className="address">{id}</span>
-      </p>
-    </section>
+    </PaymentView>
   );
 }
 
@@ -464,30 +601,41 @@ export default function App() {
   }
   return (
     <div className="shell">
-      <header>
-        <a href="/" className="brand">
-          crypto<span>_</span>gateway
-        </a>
-        <span className="badge">DEVNET · NO REAL FUNDS</span>
-      </header>
       <main>
         {match ? (
           token ? (
             <Checkout id={match[1]} token={token} />
           ) : (
-            <section className="card">
-              <h1>Session unavailable.</h1>
-              <p>Reopen the original checkout link from your application.</p>
-            </section>
+            <Card className="checkout-card">
+              <Result
+                status="warning"
+                title="Session unavailable."
+                subTitle="Reopen the original checkout link from your application."
+              />
+            </Card>
           )
         ) : (
           <Demo />
         )}
       </main>
-      <footer>
-        <span>USD → SOL</span>
-        <span>NON-CUSTODIAL / VERIFIED ON-CHAIN</span>
-      </footer>
+      <Flex
+        component="footer"
+        align="center"
+        justify="space-between"
+        gap="small"
+        wrap
+      >
+        <Typography.Text type="secondary">
+          USD → SOL · Non-custodial
+        </Typography.Text>
+        <Typography.Link
+          href="https://ant.design"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          UI built with Ant Design
+        </Typography.Link>
+      </Flex>
     </div>
   );
 }

@@ -77,15 +77,18 @@ export async function request<T>(
  * @param signal - Optional cancellation signal for the current checkout lifecycle.
  * @returns The backend's current payment state.
  */
-export function paymentStatus(
+export async function paymentStatus(
   id: string,
   token: string,
   signal?: AbortSignal,
 ): Promise<Payment> {
-  return request(`${origin}/v1/checkout/${id}`, {
-    headers: { authorization: `Bearer ${token}` },
-    signal,
-  });
+  return readPayment(
+    await request<unknown>(`${origin}/v1/checkout/${encodeURIComponent(id)}`, {
+      headers: { authorization: `Bearer ${token}` },
+      signal,
+    }),
+    id,
+  );
 }
 
 /** Submit a wallet-returned signature for verification; submission alone is not settlement.
@@ -94,19 +97,88 @@ export function paymentStatus(
  * @param signature - Candidate signature returned by the wallet.
  * @returns The backend's payment state after recording the candidate.
  */
-export function submitSignature(
+export async function submitSignature(
   id: string,
   token: string,
   signature: string,
 ): Promise<Payment> {
-  return request(`${origin}/v1/checkout/${id}/transactions`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ signature }),
-  });
+  return readPayment(
+    await request<unknown>(
+      `${origin}/v1/checkout/${encodeURIComponent(id)}/transactions`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ signature }),
+      },
+    ),
+    id,
+  );
+}
+
+/** Reject malformed gateway fields before checkout renders or prepares a transfer.
+ * @param value - Untrusted successful-response data.
+ * @param id - Expected payment identity; other payments must not replace this checkout.
+ * @returns A payment with validated checkout and wallet inputs; unused metadata stays server-owned.
+ * @throws An API error without response contents when checkout fields are malformed.
+ */
+function readPayment(value: unknown, id: string): Payment {
+  if (!value || typeof value !== 'object')
+    throw new ApiError('Unable to read payment status.', 'INVALID_RESPONSE');
+  const p = value as Payment;
+  if (
+    p.id !== id ||
+    p.network !== 'solana-devnet' ||
+    !Number.isSafeInteger(p.usdCents) ||
+    p.usdCents < 1 ||
+    p.usdCents > 1_000_000 ||
+    typeof p.lamports !== 'string' ||
+    !/^[1-9][0-9]{0,19}$/.test(p.lamports) ||
+    BigInt(p.lamports) > 18_446_744_073_709_551_615n ||
+    typeof p.displaySol !== 'string' ||
+    p.displaySol !==
+      `${BigInt(p.lamports) / 1_000_000_000n}.${String(BigInt(p.lamports) % 1_000_000_000n).padStart(9, '0')}` ||
+    typeof p.recipient !== 'string' ||
+    !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(p.recipient) ||
+    typeof p.memo !== 'string' ||
+    !p.memo ||
+    p.memo.length > 256 ||
+    !Number.isSafeInteger(p.expiresAt) ||
+    p.expiresAt < 0 ||
+    !['pending', 'verifying', 'settled', 'expired'].includes(p.status) ||
+    !(p.signature === null || validSignature(p.signature)) ||
+    !Array.isArray(p.attempts) ||
+    !p.attempts.every(validAttempt)
+  )
+    throw new ApiError('Unable to read payment status.', 'INVALID_RESPONSE');
+  return p;
+}
+
+/** Recognize a bounded Solana signature without treating it as settlement evidence.
+ * @param value - Untrusted candidate signature.
+ * @returns Whether the value has the supported base58 shape.
+ */
+function validSignature(value: unknown): value is string {
+  return (
+    typeof value === 'string' && /^[1-9A-HJ-NP-Za-km-z]{64,100}$/.test(value)
+  );
+}
+
+/** Check attempt fields used for recovery and result presentation.
+ * @param value - Untrusted verification attempt.
+ * @returns Whether it is safe for checkout to inspect the attempt.
+ */
+function validAttempt(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const attempt = value as Record<string, unknown>;
+  return (
+    validSignature(attempt.signature) &&
+    typeof attempt.state === 'string' &&
+    ['pending', 'rejected', 'verified'].includes(attempt.state) &&
+    (attempt.reason === null || typeof attempt.reason === 'string')
+  );
 }
 
 /** Parse user input without floating-point multiplication.

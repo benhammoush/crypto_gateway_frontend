@@ -12,6 +12,7 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 import {
+  connectWallet,
   sendPayment,
   WalletNotSubmitted,
   WalletSubmissionUncertain,
@@ -48,6 +49,43 @@ const payment: Payment = {
   settledAt: null,
   attempts: [],
 };
+
+it('connects without preparing or submitting a transaction', async () => {
+  const send = vi.fn();
+  window.phantom = {
+    solana: {
+      isPhantom: true,
+      connect: vi.fn().mockResolvedValue({ publicKey: payer }),
+      signAndSendTransaction: send,
+    },
+  };
+  expect(await connectWallet()).toBe(payer.toBase58());
+  expect(
+    vi.spyOn(Connection.prototype, 'getGenesisHash'),
+  ).not.toHaveBeenCalled();
+  expect(
+    vi.spyOn(Connection.prototype, 'getLatestBlockhash'),
+  ).not.toHaveBeenCalled();
+  expect(send).not.toHaveBeenCalled();
+});
+
+it('blocks sending when the connected account changed', async () => {
+  const send = vi.fn();
+  window.phantom = {
+    solana: {
+      isPhantom: true,
+      connect: vi.fn().mockResolvedValue({ publicKey: payer }),
+      signAndSendTransaction: send,
+    },
+  };
+  await expect(sendPayment(payment, token, payment.recipient)).rejects.toThrow(
+    'wallet account changed',
+  );
+  expect(send).not.toHaveBeenCalled();
+  expect(
+    vi.spyOn(Connection.prototype, 'getLatestBlockhash'),
+  ).not.toHaveBeenCalled();
+});
 
 beforeEach(() => {
   // Exercise message construction in Node and the browser bundle in Playwright.

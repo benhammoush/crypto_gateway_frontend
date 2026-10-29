@@ -1,233 +1,377 @@
 @import './design-system/styles.css';
+
+/* Product layout and approved accents; Ant Design still owns controls and feedback. */
 .shell {
-  max-width: 1120px;
+  max-width: 1344px;
   min-height: 100dvh;
   margin: auto;
-  padding: var(--space-xl);
+  padding: clamp(16px, 3vw, 32px);
   display: flex;
   flex-direction: column;
 }
-header,
-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-md);
-}
-header {
-  padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--color-border);
-}
-.brand {
-  font-family: var(--font-mono);
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -1px;
-}
-.brand span,
-h1 span {
-  color: var(--color-accent);
-}
-.badge,
-.eyebrow,
-footer,
-.footnote,
-dt,
-.quote {
-  font-family: var(--font-mono);
-}
-.badge {
-  font-size: var(--font-size-caption);
-  color: var(--color-accent);
-  border: 1px solid #435335;
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-}
-main {
+
+.shell > main {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 0 24px;
+}
+
+.checkout-layout,
+.checkout-feedback {
+  width: 100%;
+  max-width: 1280px;
+  min-width: 0;
+}
+
+.checkout-feedback:empty {
+  display: none;
+}
+
+.checkout-card {
+  width: 100%;
+  max-width: 480px;
+  min-width: 0;
+}
+
+.checkout-layout .checkout-card {
+  max-width: none;
+}
+
+.checkout-layout > header {
+  margin-bottom: 8px;
+}
+
+.brand.ant-typography {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ant-color-text, #262626);
+}
+
+.brand-mark {
   display: grid;
   place-items: center;
-  padding: 60px 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--ant-color-primary, #1677ff);
+  color: var(--ant-color-white, #fff);
+  font-size: 1.25rem;
+  box-shadow: 0 3px 8px #1677ff20;
 }
-.card {
-  width: 100%;
-  max-width: 500px;
-  padding: 36px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-}
-.eyebrow {
-  font-size: var(--font-size-caption);
-  letter-spacing: 2px;
-  color: #a0af94;
-  margin: 0 0 var(--space-lg);
-}
-h1 {
-  font-size: clamp(32px, 5vw, 44px);
-  line-height: 1.12;
-  letter-spacing: -1.8px;
-  margin: 0 0 20px;
-}
-.description {
-  line-height: 1.7;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-body);
-  margin-bottom: 30px;
-}
-label {
+
+.brand-title {
   display: block;
-  font-size: var(--font-size-small);
-  margin-bottom: 10px;
-  color: #bcc8b5;
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
 }
-.amount {
-  display: flex;
+
+.brand-title > span {
+  color: #722ed1;
+}
+
+.brand-subtitle {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--ant-color-text-secondary, #737373);
+}
+
+.role-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px minmax(0, 1.08fr);
+  gap: 16px;
   align-items: center;
-  padding: var(--space-md);
-  gap: 10px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background: var(--color-background);
 }
-.amount:focus-within {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-.amount input {
+
+.role-layout > section,
+.customer-layout {
   min-width: 0;
-  width: 100%;
-  border: none;
-  background: transparent;
-  font-size: 28px;
-  color: var(--color-text);
-  outline: none;
 }
-.currency {
-  font-size: var(--font-size-small);
-  color: #99a58e;
-}
-button {
+
+.customer-layout {
   width: 100%;
+  max-width: 480px;
+  align-self: center;
+}
+
+.role-label {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: var(--space-md) 18px;
-  margin-top: var(--space-md);
-  border: 0;
-  border-radius: var(--radius-control);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  font-weight: 700;
-  cursor: pointer;
+  gap: 7px;
+  margin-bottom: 8px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
 }
-button:hover {
-  background: var(--color-accent-hover);
+
+.role-label::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ant-color-text-quaternary, #bfbfbf);
 }
-button:disabled {
-  opacity: 0.55;
-  cursor: wait;
+
+section[aria-label='Customer'] > .role-label::before {
+  background: var(--ant-color-primary, #1677ff);
 }
-.secondary {
-  background: transparent;
-  border: 1px solid var(--color-border-strong);
-  color: var(--color-accent);
-  font-size: var(--font-size-small);
+
+.checkout-card {
+  box-shadow: 0 2px 5px #1f293703;
+}
+
+.panel-icon,
+.status-icon {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--ant-color-primary, #1677ff);
+  background: var(--ant-color-primary-bg, #e6f4ff);
+}
+
+.panel-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  font-size: 1rem;
+}
+
+.status-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 1rem;
+}
+
+.status-icon-success {
+  color: var(--ant-color-success, #52c41a);
+  background: var(--ant-color-success-bg, #f6ffed);
+}
+
+.cart-explanation.ant-typography {
+  margin-bottom: 2px;
+  font-size: 0.8125rem;
+}
+
+.panel-frame {
+  position: relative;
+}
+
+.locked-panel {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.submitted-panel {
+  filter: grayscale(1);
+}
+
+.panel-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  padding: 12px;
+  pointer-events: none;
 }
-.secondary:hover {
-  background: var(--color-secondary-hover);
+
+.panel-status-card.ant-card {
+  width: 260px;
+  max-width: 100%;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 16px #1f29370a;
 }
-.footnote {
-  font-size: var(--font-size-caption);
-  line-height: 1.8;
-  color: var(--color-text-muted);
-  margin: 24px 0 0;
+
+.panel-status-card .ant-typography-secondary {
+  font-size: 0.75rem;
 }
-.total {
-  font-size: 36px;
-  margin: 24px 0 12px;
+
+.handoff {
+  text-align: center;
 }
-.total small {
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
+
+.handoff-arrow {
+  margin-bottom: 8px;
+  color: var(--ant-color-primary-border, #91caff);
 }
-.quote {
-  color: var(--color-accent);
-  font-size: var(--font-size-body);
+
+.handoff-arrow .arrow-vertical {
+  display: none;
 }
-.quote span {
-  display: block;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-caption);
-  margin-top: 8px;
+
+.handoff-card.ant-card {
+  border-color: var(--ant-color-primary-border, #91caff);
 }
-dl {
-  font-size: 11px;
-  margin: 24px 0;
+
+.handoff .panel-icon {
+  align-self: center;
 }
-dt {
-  color: var(--color-text-muted);
-  margin-top: 12px;
+
+.handoff-path.ant-typography {
+  background: var(--ant-color-fill-quaternary, #fafafa);
+  border-radius: 4px;
+  padding: 4px;
+  font-family: var(--ant-font-family-code, monospace);
+  font-size: 0.75rem;
 }
-dd {
-  margin: 5px 0 0;
+
+.handoff-copy .ant-typography-copy,
+.handoff-copy-placeholder.ant-typography {
+  display: inline-flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 5px 7px;
+  border: 1px solid var(--ant-color-primary-border, #91caff);
+  border-radius: 6px;
+  background: var(--ant-color-bg-container, #fff);
+  font-size: 0.8125rem;
 }
+
+.handoff-hint.ant-typography {
+  font-size: 0.75rem;
+}
+
+.handoff-waiting .handoff-card {
+  opacity: 0.4;
+}
+
+.amount-total.ant-typography {
+  font-size: 1.75rem;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.3;
+}
+
+.amount-total > .ant-typography {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+.checkout-details {
+  border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  padding-top: 8px;
+}
+
 .address {
   overflow-wrap: anywhere;
+  min-width: 0;
 }
-.progress {
-  list-style: none;
-  padding: 0;
-  margin: 28px 0 0;
+
+.payment-reference.ant-typography {
+  font-size: 0.75rem;
 }
-.progress li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: 9px 0;
-  font-size: var(--font-size-small);
-  color: #819078;
+
+.receipt-details {
+  border-radius: 8px;
+  background: var(--ant-color-fill-quaternary, #fafafa);
+  padding: 12px 14px 4px;
 }
-.progress li > span {
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--color-border-strong);
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  font-size: var(--font-size-caption);
+
+.progress-card .ant-card-head-title {
+  font-size: 0.8125rem;
+  font-weight: 500;
 }
-.progress .active {
-  color: var(--color-accent);
+
+.progress-card .ant-card-head-wrapper {
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
-.progress .active > span {
-  border-color: var(--color-accent);
-  background: #2e4122;
+
+.progress-card .ant-card-extra {
+  margin-inline-start: 0;
 }
-footer {
-  border-top: 1px solid var(--color-border);
-  padding-top: 20px;
-  font-size: 9px;
-  color: var(--color-text-muted);
-  letter-spacing: 0.5px;
+
+.progress-card .ant-card-extra .ant-btn {
+  font-size: 0.75rem;
 }
-@media (max-width: 540px) {
-  .shell {
-    padding: 20px;
+
+/* Center three equal-width stages; keep Ant's native stacked layout on phones. */
+.progress-card .ant-steps-horizontal .ant-steps-item,
+.progress-card .ant-steps-horizontal .ant-steps-item:last-child {
+  flex: 1;
+}
+
+.progress-card
+  .ant-steps.ant-steps-horizontal.ant-steps-label-vertical
+  .ant-steps-item-content {
+  width: 100%;
+}
+
+.progress-card
+  .ant-steps.ant-steps-horizontal.ant-steps-label-vertical.ant-steps-small
+  .ant-steps-item-icon {
+  margin-inline-start: calc(50% - 12px);
+  margin-inline-end: 0;
+}
+
+.progress-card
+  .ant-steps.ant-steps-horizontal.ant-steps-label-vertical
+  .ant-steps-item-tail {
+  margin-inline-start: 50%;
+  padding-inline: 20px;
+}
+
+.progress-card .ant-steps-item-title,
+.progress-card .ant-steps-item-description {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.shell > footer {
+  font-size: 0.75rem;
+}
+
+.shell > footer .ant-typography {
+  font-size: inherit;
+}
+
+@media (max-width: 899px) {
+  .role-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
-  header {
-    align-items: flex-start;
-    flex-direction: column;
+
+  .handoff {
+    width: 100%;
+    max-width: 280px;
+    justify-self: center;
   }
-  main {
-    padding: 32px 0;
+
+  .handoff-arrow .arrow-horizontal {
+    display: none;
   }
-  .card {
-    padding: var(--space-lg);
+
+  .handoff-arrow .arrow-vertical {
+    display: inline-block;
   }
-  footer {
-    flex-wrap: wrap;
+}
+
+@media (max-width: 420px) {
+  .brand.ant-typography {
+    gap: 8px;
+  }
+
+  .brand-subtitle {
+    font-size: 0.6875rem;
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .network-label {
+    display: none;
   }
 }

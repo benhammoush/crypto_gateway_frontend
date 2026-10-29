@@ -48,9 +48,9 @@ test('checkout displays a safe support reference without suggesting another paym
   await expect(page.getByRole('alert')).toContainText(
     'Your payment has not been marked failed.',
   );
-  await expect(
-    page.getByRole('button', { name: 'Pay with Phantom' }),
-  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Pay with SOL' })).toHaveCount(
+    0,
+  );
 });
 
 test('wallet failure hints stay dev-only and cannot trigger a second submission', async ({
@@ -151,7 +151,8 @@ test('wallet failure hints stay dev-only and cannot trigger a second submission'
     }
   });
   await page.goto(`/checkout/${id}#${'a'.repeat(64)}`);
-  await page.getByRole('button', { name: 'Pay with Phantom' }).click();
+  await page.getByRole('button', { name: 'Connect wallet' }).click();
+  await page.getByRole('button', { name: 'Pay with SOL' }).click();
   await expect(page.getByRole('status')).toContainText('WALLET_RPC_-32603');
   if (diagnosticsEnabled) {
     await expect(page.getByRole('status')).toContainText(
@@ -178,9 +179,9 @@ test('wallet failure hints stay dev-only and cannot trigger a second submission'
   }
   await expect(page.getByText(secret, { exact: false })).toHaveCount(0);
   await page.getByRole('button', { name: 'Refresh status' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Pay with Phantom' }),
-  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Pay with SOL' })).toHaveCount(
+    0,
+  );
   expect(
     await page.evaluate(
       () =>
@@ -340,7 +341,7 @@ test('browser wallet flow verifies only after authoritative settlement', async (
           memo: `crypto_gateway:${id}`,
           network: 'solana-devnet',
           attempts: submitted
-            ? [{ signature: '1'.repeat(64), state: 'pending' }]
+            ? [{ signature: '1'.repeat(64), state: 'pending', reason: null }]
             : [],
           signature: settled ? '1'.repeat(64) : null,
         },
@@ -348,10 +349,7 @@ test('browser wallet flow verifies only after authoritative settlement', async (
     });
   });
   await page.goto(`/checkout/${id}#${'a'.repeat(64)}`);
-  await page.getByRole('button', { name: 'Pay with Phantom' }).click();
-  await expect(page.locator('[aria-current="step"]')).toHaveText(
-    '1Awaiting wallet approval',
-  );
+  await page.getByRole('button', { name: 'Connect wallet' }).click();
   await page.waitForFunction(() => 'approveFixtureWallet' in window);
   await page.evaluate(() =>
     (
@@ -361,18 +359,57 @@ test('browser wallet flow verifies only after authoritative settlement', async (
       }
     ).approveFixtureWallet(),
   );
+  await page.evaluate(() => {
+    delete (window as unknown as { approveFixtureWallet?: unknown })
+      .approveFixtureWallet;
+  });
+  await expect(
+    page.getByRole('button', { name: 'Pay with SOL' }),
+  ).toBeEnabled();
+  expect(rpcMethods).toEqual([]);
+  await page.getByRole('button', { name: 'Pay with SOL' }).click();
   await expect(page.locator('[aria-current="step"]')).toHaveText(
-    '3Verifying on-chain',
+    'Wallet approval',
+  );
+  await page.waitForFunction(() => 'approveFixtureWallet' in window);
+  await page.evaluate(() =>
+    (
+      window as unknown as {
+        /** Approve the sender's account revalidation. */ approveFixtureWallet(): void;
+      }
+    ).approveFixtureWallet(),
+  );
+  await expect(page.locator('[aria-current="step"]')).toHaveText(
+    'On-chain verification',
   );
   await expect(
-    page.getByText('Verified testnet transfer. No real funds were used.'),
+    page.getByText('The backend confirmed your payment.'),
   ).toHaveCount(0);
   settled = true;
   await page.getByRole('button', { name: 'Refresh status' }).click();
   await expect(page.locator('[aria-current="step"]')).toHaveText(
-    '4Payment verified',
+    'On-chain verification',
   );
   expect(rpcMethods).toEqual(['getGenesisHash', 'getLatestBlockhash']);
+  await expect(
+    page.getByRole('dialog', { name: 'Payment verified' }),
+  ).toBeVisible();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Close', exact: true })
+    .last()
+    .click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'View payment status' }),
+  ).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Pay with SOL' })).toHaveCount(
+    0,
+  );
+  await page.getByRole('button', { name: 'View payment status' }).click();
+  await expect(
+    page.getByRole('dialog', { name: 'Payment verified' }),
+  ).toBeVisible();
 });
 
 test('disabled demo explains availability and blocks payment creation', async ({
@@ -387,17 +424,19 @@ test('disabled demo explains availability and blocks payment creation', async ({
     return route.abort();
   });
   await page.goto('/');
-  await expect(page.getByRole('status')).toHaveText(
-    'Demo payments are disabled.',
-  );
   await expect(
-    page.getByRole('button', { name: 'Pay', exact: true }),
+    page
+      .getByRole('region', { name: 'Business', exact: true })
+      .getByRole('status'),
+  ).toHaveText('Demo payments are disabled.');
+  await expect(
+    page.getByRole('button', { name: 'Create payment link', exact: true }),
   ).toBeDisabled();
-  await expect(page.getByLabel('Amount in USD')).toBeDisabled();
+  await expect(page.getByLabel('Cart total (USD)')).toBeDisabled();
   expect(posts).toBe(0);
 });
 
-test('USD form creates a payment and opens checkout with four progress steps', async ({
+test('USD form creates an inline checkout with three progress steps and a customer-only reload', async ({
   page,
 }) => {
   const id = '11111111-1111-4111-8111-111111111111';
@@ -428,6 +467,7 @@ test('USD form creates a payment and opens checkout with four progress steps', a
           usdCents: 1234,
           displaySol: '0.082266667',
           lamports: '82266667',
+          memo: `crypto_gateway:${id}`,
           status: 'pending',
           recipient: 'So11111111111111111111111111111111111111112',
           expiresAt: Date.now() + 900_000,
@@ -439,13 +479,29 @@ test('USD form creates a payment and opens checkout with four progress steps', a
     });
   });
   await page.goto('/');
-  await page.getByLabel('Amount in USD').fill('12.34');
-  await page.getByRole('button', { name: 'Pay', exact: true }).click();
-  await expect(page.getByText('$12.34')).toBeVisible();
+  await page.getByLabel('Cart total (USD)').fill('12.34');
+  await page
+    .getByRole('button', { name: 'Create payment link', exact: true })
+    .click();
+  await expect(page.getByRole('heading', { name: '$12.34 USD' })).toBeVisible();
   await expect(
     page.getByRole('list', { name: 'Payment progress' }).getByRole('listitem'),
-  ).toHaveCount(4);
+  ).toHaveCount(3);
+  await expect(page.getByLabel('Cart total (USD)')).toBeDisabled();
+  await expect(page.getByRole('combobox', { name: 'Network' })).toBeDisabled();
+  await expect(page.getByText('Created · amount locked')).toBeVisible();
+  await expect(
+    page.getByText('Your payment link is ready to share.'),
+  ).toBeVisible();
+  await expect(page.getByText('Waiting for checkout creation')).toHaveCount(0);
+  await expect(
+    page.getByRole('region', { name: 'Checkout link handoff' }),
+  ).toContainText(`/checkout/${id}`);
+  await expect(page.locator('body')).not.toContainText('a'.repeat(64));
   expect(new URL(page.url()).hash).toBe('');
   await page.reload();
-  await expect(page.getByText('$12.34')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '$12.34 USD' })).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Business', exact: true }),
+  ).toHaveCount(0);
 });
