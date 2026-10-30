@@ -151,7 +151,7 @@ export async function checkSupportLog(env, fetcher = globalThis.fetch) {
   const healthBody = await json(health);
   requireValue(
     healthBody.data?.service === 'crypto_gateway_backend' &&
-      healthBody.data?.version === '0.3.1',
+      healthBody.data?.version === '0.4.0',
     'BACKEND_LOG_CHECK_VERSION_REQUIRED',
   );
   const privacyCanary = `support-canary-${randomUUID()}`;

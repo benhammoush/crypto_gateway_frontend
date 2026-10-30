@@ -1,4 +1,38 @@
 export interface paths {
+  '/v1/price': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Public indicative SOL/USD reference from the payment pricing provider, not a locked payment quote. No payment is created or changed. Disabled when payments are disabled. No-store; limited to 6 requests per IP/minute and 60 globally/minute in addition to the general IP budget. fetchedAt is gateway retrieval time, not the time of the provider's last market update. */
+    get: operations['getReferencePrice'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/support/log-check': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Dev-only operator acceptance check, available even when payments are disabled. Requires a server-side merchant credential, consumes rate-limit counters and emits one fixed synthetic failure with the returned request ID. Returns 500 SUPPORT_LOG_CHECK deliberately; never creates, submits or settles a payment or calls providers. Limited to one authenticated check per merchant per minute. Not available in local or production environments. No request body is read or logged. */
+    post: operations['checkSupportLogs'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/payments': {
     parameters: {
       query?: never;
@@ -84,6 +118,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    ReferencePrice: {
+      /** @description Positive USD per SOL, represented as decimal text, possibly in exponent notation. */
+      usdPrice: string;
+      blockId: number;
+      /** @description Gateway retrieval time in Unix milliseconds; not provider market-update time. */
+      fetchedAt: number;
+    };
+    ReferencePriceEnvelope: {
+      data: components['schemas']['ReferencePrice'];
+      meta: {
+        requestId: string;
+      };
+    };
     RpcId: string | number;
     CheckoutRpcRequest: {
       /** @constant */
@@ -175,6 +222,19 @@ export interface components {
         code: string;
         message: string;
         requestId: string;
+        /**
+         * @description Fixed configuration failure classification, returned only by GET /ready in dev. Never contains configuration values or upstream messages.
+         * @enum {string}
+         */
+        diagnostic?:
+          | 'APP_ENV_INVALID'
+          | 'CHECKOUT_ORIGIN_INVALID'
+          | 'RPC_URL_INVALID'
+          | 'RPC_URL_NOT_HTTPS'
+          | 'RPC_URL_HAS_CREDENTIALS'
+          | 'MERCHANT_ENCRYPTION_KEYS_INVALID'
+          | 'PRICE_KEY_MISSING'
+          | 'CHECKOUT_SECRET_TOO_SHORT';
       };
     };
   };
@@ -207,6 +267,40 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  getReferencePrice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Validated reference price and gateway retrieval time. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReferencePriceEnvelope'];
+        };
+      };
+      default: components['responses']['Error'];
+    };
+  };
+  checkSupportLogs: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      500: components['responses']['Error'];
+      default: components['responses']['Error'];
+    };
+  };
   createPayment: {
     parameters: {
       query?: never;

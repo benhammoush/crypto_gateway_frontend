@@ -24,6 +24,7 @@ import { readSession, removeSession, saveSession } from './storage';
 import { CheckoutLayout } from './CheckoutLayout';
 import { PaymentView } from './PaymentView';
 import { PanelStatus } from './PanelStatus';
+import { LivePrice } from './LivePrice';
 import {
   Alert,
   Button,
@@ -206,6 +207,7 @@ function Demo() {
                 </Button>
               </Form>
             </form>
+            {!checkout && availability === 'enabled' && <LivePrice />}
             {availability !== 'enabled' && (
               <Alert
                 role="status"

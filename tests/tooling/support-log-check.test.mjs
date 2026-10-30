@@ -64,7 +64,7 @@ function fixture() {
         },
       ],
     },
-    { data: { service: 'crypto_gateway_backend', version: '0.3.1' } },
+    { data: { service: 'crypto_gateway_backend', version: '0.4.0' } },
     { error: { code: 'SUPPORT_LOG_CHECK', requestId } },
   ];
 }
