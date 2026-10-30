@@ -198,221 +198,271 @@ test('wallet failure hints stay dev-only and cannot trigger a second submission'
   if (!diagnosticsEnabled) expect(stored).toBeNull();
 });
 
-test('browser wallet flow verifies only after authoritative settlement', async ({
-  page,
-}) => {
-  const id = '22222222-2222-4222-8222-222222222222';
-  let submitted = false;
-  let settled = false;
-  const rpcMethods: string[] = [];
-  await page.exposeFunction('validateFixtureMessage', (wire: number[]) => {
-    const bytes = new Uint8Array(wire);
-    const decoded = VersionedTransaction.deserialize(bytes);
-    expect(decoded.version).toBe('legacy');
-    const transaction = Transaction.from(bytes);
-    expect(transaction.instructions).toHaveLength(2);
-    const transfer = SystemInstruction.decodeTransfer(
-      transaction.instructions[0],
-    );
-    expect(transfer.lamports).toBe(100000000n);
-    expect(transfer.fromPubkey.toBase58()).toBe('1'.repeat(32));
-    expect(transfer.toPubkey.toBase58()).toBe(
-      'So11111111111111111111111111111111111111112',
-    );
-    expect(transaction.feePayer?.toBase58()).toBe('1'.repeat(32));
-    expect(decoded.message.header.numRequiredSignatures).toBe(1);
-    const memo = transaction.instructions[1];
-    expect(memo.programId.toBase58()).toBe(
-      'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
-    );
-    expect(new TextDecoder().decode(memo.data)).toBe(`crypto_gateway:${id}`);
-    expect(memo.keys[0].pubkey.toBase58()).toBe('1'.repeat(32));
-    expect(memo.keys[0].isSigner).toBe(true);
-  });
-  await page.addInitScript(() => {
-    Object.assign(window, {
-      phantom: {
-        solana: {
-          isPhantom: true,
-          /** Defer connection until the test explicitly approves the fixture wallet.
-           * @returns The controlled connection after explicit fixture approval.
-           */
-          connect: () =>
-            new Promise((resolve) =>
-              Object.assign(window, {
-                /** Resolve the wallet connection after the test has arranged expiry state.
-                 * @returns Completion after resolving the deferred connection.
-                 */
-                approveFixtureWallet: () =>
-                  resolve({
-                    publicKey: {
-                      /** Return the fixture public key in wallet encoding.
-                       * @returns The base58 fixture payer.
-                       */
-                      toBase58: () => '11111111111111111111111111111111',
-                    },
-                  }),
-              }),
-            ),
-          /** Inspect serialized wire bytes before returning the controlled submission result.
-           * @param transaction - Wallet-bound transaction prepared by checkout.
-           * @returns The fixture signature after message validation succeeds.
-           */
-          signAndSendTransaction: async (
-            transaction: Pick<VersionedTransaction, 'serialize'>,
-          ) => {
-            const bytes = transaction.serialize();
-            if (!(bytes instanceof Uint8Array))
-              throw new Error('Wallet serialization must be synchronous.');
-            await (
-              window as unknown as {
-                /** Check the serialized wallet message in the Node-side fixture.
-                 * @param wire - Serialized transaction byte values.
-                 * @returns Completion after assertions pass.
-                 */
-                validateFixtureMessage(wire: number[]): Promise<void>;
-              }
-            ).validateFixtureMessage(Array.from(bytes));
-            return { signature: '1'.repeat(64) };
+for (const responseLoss of ['none', 'unrecorded', 'recorded'] as const) {
+  const loseResponse = responseLoss !== 'none';
+  test(`browser wallet flow verifies only after authoritative settlement${loseResponse ? ` after a lost ${responseLoss} submission response and reload` : ''}`, async ({
+    page,
+  }) => {
+    const id = '22222222-2222-4222-8222-222222222222';
+    let submitted = false;
+    let settled = false;
+    let recoverSubmission = !loseResponse;
+    let walletSends = 0;
+    const submissions: string[] = [];
+    const rpcMethods: string[] = [];
+    await page.exposeFunction('validateFixtureMessage', (wire: number[]) => {
+      walletSends++;
+      const bytes = new Uint8Array(wire);
+      const decoded = VersionedTransaction.deserialize(bytes);
+      expect(decoded.version).toBe('legacy');
+      const transaction = Transaction.from(bytes);
+      expect(transaction.instructions).toHaveLength(2);
+      const transfer = SystemInstruction.decodeTransfer(
+        transaction.instructions[0],
+      );
+      expect(transfer.lamports).toBe(100000000n);
+      expect(transfer.fromPubkey.toBase58()).toBe('1'.repeat(32));
+      expect(transfer.toPubkey.toBase58()).toBe(
+        'So11111111111111111111111111111111111111112',
+      );
+      expect(transaction.feePayer?.toBase58()).toBe('1'.repeat(32));
+      expect(decoded.message.header.numRequiredSignatures).toBe(1);
+      const memo = transaction.instructions[1];
+      expect(memo.programId.toBase58()).toBe(
+        'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
+      );
+      expect(new TextDecoder().decode(memo.data)).toBe(`crypto_gateway:${id}`);
+      expect(memo.keys[0].pubkey.toBase58()).toBe('1'.repeat(32));
+      expect(memo.keys[0].isSigner).toBe(true);
+    });
+    await page.addInitScript(() => {
+      Object.assign(window, {
+        phantom: {
+          solana: {
+            isPhantom: true,
+            /** Defer connection until the test explicitly approves the fixture wallet.
+             * @returns The controlled connection after explicit fixture approval.
+             */
+            connect: () =>
+              new Promise((resolve) =>
+                Object.assign(window, {
+                  /** Resolve the wallet connection after the test has arranged expiry state.
+                   * @returns Completion after resolving the deferred connection.
+                   */
+                  approveFixtureWallet: () =>
+                    resolve({
+                      publicKey: {
+                        /** Return the fixture public key in wallet encoding.
+                         * @returns The base58 fixture payer.
+                         */
+                        toBase58: () => '11111111111111111111111111111111',
+                      },
+                    }),
+                }),
+              ),
+            /** Inspect serialized wire bytes before returning the controlled submission result.
+             * @param transaction - Wallet-bound transaction prepared by checkout.
+             * @returns The fixture signature after message validation succeeds.
+             */
+            signAndSendTransaction: async (
+              transaction: Pick<VersionedTransaction, 'serialize'>,
+            ) => {
+              const bytes = transaction.serialize();
+              if (!(bytes instanceof Uint8Array))
+                throw new Error('Wallet serialization must be synchronous.');
+              await (
+                window as unknown as {
+                  /** Check the serialized wallet message in the Node-side fixture.
+                   * @param wire - Serialized transaction byte values.
+                   * @returns Completion after assertions pass.
+                   */
+                  validateFixtureMessage(wire: number[]): Promise<void>;
+                }
+              ).validateFixtureMessage(Array.from(bytes));
+              return { signature: '1'.repeat(64) };
+            },
           },
         },
-      },
+      });
     });
-  });
-  const headers = {
-    'access-control-allow-origin': test.info().project.use.baseURL!,
-    'access-control-allow-headers':
-      'authorization, content-type, solana-client',
-    'access-control-allow-methods': 'GET, POST, OPTIONS',
-  };
-  await page.route('**/v1/checkout/**/rpc', async (route) => {
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ headers, body: '' });
-      return;
-    }
-    const body = route.request().postDataJSON() as {
-      method: string;
-      params: unknown[];
-      id: number;
+    const headers = {
+      'access-control-allow-origin': test.info().project.use.baseURL!,
+      'access-control-allow-headers':
+        'authorization, content-type, solana-client',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
     };
-    const method = body.method;
-    if (method === 'getLatestBlockhash')
-      expect(body.params).toEqual([{ commitment: 'finalized' }]);
-    expect(route.request().headers().authorization).toBe(
-      `Bearer ${'a'.repeat(64)}`,
-    );
-    rpcMethods.push(method);
-    await route.fulfill({
-      headers,
-      json: {
-        jsonrpc: '2.0',
-        id: body.id,
-        result:
-          method === 'getGenesisHash'
-            ? 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG'
-            : {
-                context: { slot: 123 },
-                value: {
-                  blockhash: '11111111111111111111111111111111',
-                  lastValidBlockHeight: 100,
+    await page.route('**/v1/checkout/**/rpc', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ headers, body: '' });
+        return;
+      }
+      const body = route.request().postDataJSON() as {
+        method: string;
+        params: unknown[];
+        id: number;
+      };
+      const method = body.method;
+      if (method === 'getLatestBlockhash')
+        expect(body.params).toEqual([{ commitment: 'finalized' }]);
+      expect(route.request().headers().authorization).toBe(
+        `Bearer ${'a'.repeat(64)}`,
+      );
+      rpcMethods.push(method);
+      await route.fulfill({
+        headers,
+        json: {
+          jsonrpc: '2.0',
+          id: body.id,
+          result:
+            method === 'getGenesisHash'
+              ? 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG'
+              : {
+                  context: { slot: 123 },
+                  value: {
+                    blockhash: '11111111111111111111111111111111',
+                    lastValidBlockHeight: 100,
+                  },
                 },
-              },
-      },
-    });
-  });
-  await page.route('**/v1/checkout/**', async (route) => {
-    if (route.request().url().endsWith('/rpc')) return route.fallback();
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ headers, body: '' });
-      return;
-    }
-    if (route.request().method() === 'POST') submitted = true;
-    await route.fulfill({
-      headers,
-      json: {
-        data: {
-          id,
-          usdCents: 1000,
-          displaySol: '0.100000000',
-          lamports: '100000000',
-          status: settled ? 'settled' : submitted ? 'verifying' : 'pending',
-          recipient: 'So11111111111111111111111111111111111111112',
-          quote: { usdPrice: '100', blockId: 123 },
-          expiresAt: Date.now() + 900_000,
-          rpcUrl: 'https://api.devnet.solana.com',
-          memo: `crypto_gateway:${id}`,
-          network: 'solana-devnet',
-          attempts: submitted
-            ? [{ signature: '1'.repeat(64), state: 'pending', reason: null }]
-            : [],
-          signature: settled ? '1'.repeat(64) : null,
         },
-      },
+      });
     });
-  });
-  await page.goto(`/checkout/${id}#${'a'.repeat(64)}`);
-  await page.getByRole('button', { name: 'Connect wallet' }).click();
-  await page.waitForFunction(() => 'approveFixtureWallet' in window);
-  await page.evaluate(() =>
-    (
-      window as unknown as {
-        /** Complete the deferred fixture-wallet connection. */
-        approveFixtureWallet(): void;
+    await page.route('**/v1/checkout/**', async (route) => {
+      if (route.request().url().endsWith('/rpc')) return route.fallback();
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ headers, body: '' });
+        return;
       }
-    ).approveFixtureWallet(),
-  );
-  await page.evaluate(() => {
-    delete (window as unknown as { approveFixtureWallet?: unknown })
-      .approveFixtureWallet;
-  });
-  await expect(
-    page.getByRole('button', { name: 'Pay with SOL' }),
-  ).toBeEnabled();
-  expect(rpcMethods).toEqual([]);
-  await page.getByRole('button', { name: 'Pay with SOL' }).click();
-  await expect(page.locator('[aria-current="step"]')).toHaveText(
-    'Wallet approval',
-  );
-  await page.waitForFunction(() => 'approveFixtureWallet' in window);
-  await page.evaluate(() =>
-    (
-      window as unknown as {
-        /** Approve the sender's account revalidation. */ approveFixtureWallet(): void;
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() as { signature: string };
+        expect(body).toEqual({
+          signature: '1'.repeat(64),
+        });
+        submissions.push(body.signature);
+        if (!recoverSubmission) {
+          if (responseLoss === 'recorded') submitted = true;
+          return route.abort('timedout');
+        }
+        submitted = true;
       }
-    ).approveFixtureWallet(),
-  );
-  await expect(page.locator('[aria-current="step"]')).toHaveText(
-    'On-chain verification',
-  );
-  await expect(
-    page.getByText('The backend confirmed your payment.'),
-  ).toHaveCount(0);
-  settled = true;
-  await page.getByRole('button', { name: 'Refresh status' }).click();
-  await expect(page.locator('[aria-current="step"]')).toHaveText(
-    'On-chain verification',
-  );
-  expect(rpcMethods).toEqual(['getGenesisHash', 'getLatestBlockhash']);
-  await expect(
-    page.getByRole('dialog', { name: 'Payment verified' }),
-  ).toBeVisible();
-  await page
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Close', exact: true })
-    .last()
-    .click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(
-    page.getByRole('button', { name: 'View payment status' }),
-  ).toBeFocused();
-  await expect(page.getByRole('button', { name: 'Pay with SOL' })).toHaveCount(
-    0,
-  );
-  await page.getByRole('button', { name: 'View payment status' }).click();
-  await expect(
-    page.getByRole('dialog', { name: 'Payment verified' }),
-  ).toBeVisible();
-});
+      await route.fulfill({
+        headers,
+        json: {
+          data: {
+            id,
+            usdCents: 1000,
+            displaySol: '0.100000000',
+            lamports: '100000000',
+            status: settled ? 'settled' : submitted ? 'verifying' : 'pending',
+            recipient: 'So11111111111111111111111111111111111111112',
+            quote: { usdPrice: '100', blockId: 123 },
+            expiresAt: Date.now() + 900_000,
+            rpcUrl: 'https://api.devnet.solana.com',
+            memo: `crypto_gateway:${id}`,
+            network: 'solana-devnet',
+            attempts: submitted
+              ? [{ signature: '1'.repeat(64), state: 'pending', reason: null }]
+              : [],
+            signature: settled ? '1'.repeat(64) : null,
+          },
+        },
+      });
+    });
+    await page.goto(`/checkout/${id}#${'a'.repeat(64)}`);
+    await page.getByRole('button', { name: 'Connect wallet' }).click();
+    await page.waitForFunction(() => 'approveFixtureWallet' in window);
+    await page.evaluate(() =>
+      (
+        window as unknown as {
+          /** Complete the deferred fixture-wallet connection. */
+          approveFixtureWallet(): void;
+        }
+      ).approveFixtureWallet(),
+    );
+    await page.evaluate(() => {
+      delete (window as unknown as { approveFixtureWallet?: unknown })
+        .approveFixtureWallet;
+    });
+    await expect(
+      page.getByRole('button', { name: 'Pay with SOL' }),
+    ).toBeEnabled();
+    expect(rpcMethods).toEqual([]);
+    await page.getByRole('button', { name: 'Pay with SOL' }).click();
+    await expect(page.locator('[aria-current="step"]')).toHaveText(
+      'Wallet approval',
+    );
+    await page.waitForFunction(() => 'approveFixtureWallet' in window);
+    await page.evaluate(() =>
+      (
+        window as unknown as {
+          /** Approve the sender's account revalidation. */ approveFixtureWallet(): void;
+        }
+      ).approveFixtureWallet(),
+    );
+    if (loseResponse) {
+      await expect(page.getByRole('alert')).toContainText(
+        'Your transaction was submitted. Refresh status; do not pay again.',
+      );
+      expect(
+        await page.evaluate(
+          (id) => sessionStorage.getItem(`crypto_gateway:signature:${id}`),
+          id,
+        ),
+      ).toBe('1'.repeat(64));
+      await page.reload();
+      recoverSubmission = true;
+      await page.getByRole('button', { name: 'Refresh status' }).click();
+      await expect.poll(() => submitted).toBe(true);
+      // Read back the recovered attempt before allowing the fixture to settle.
+      await page.getByRole('button', { name: 'Refresh status' }).click();
+      await expect(
+        page.getByRole('dialog', { name: 'Verifying payment', exact: true }),
+      ).toBeVisible();
+      if (responseLoss === 'recorded') expect(submissions).toHaveLength(1);
+      else expect(submissions.length).toBeGreaterThanOrEqual(2);
+      await expect(
+        page.getByRole('button', { name: 'Pay with SOL' }),
+      ).toHaveCount(0);
+    }
+    await expect(page.locator('[aria-current="step"]')).toHaveText(
+      'On-chain verification',
+    );
+    await expect(
+      page.getByText('The backend confirmed your payment.'),
+    ).toHaveCount(0);
+    settled = true;
+    await page.getByRole('button', { name: 'Refresh status' }).click();
+    await expect(page.locator('[aria-current="step"]')).toHaveText(
+      'On-chain verification',
+    );
+    expect(rpcMethods).toEqual(['getGenesisHash', 'getLatestBlockhash']);
+    await expect(
+      page.getByRole('dialog', { name: 'Payment verified' }),
+    ).toBeVisible();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Close', exact: true })
+      .last()
+      .click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'View payment status' }),
+    ).toBeFocused();
+    await expect(
+      page.getByRole('button', { name: 'Pay with SOL' }),
+    ).toHaveCount(0);
+    await page.getByRole('button', { name: 'View payment status' }).click();
+    await expect(
+      page.getByRole('dialog', { name: 'Payment verified' }),
+    ).toBeVisible();
+    expect(walletSends).toBe(1);
+    if (responseLoss === 'unrecorded')
+      expect(submissions.length).toBeGreaterThanOrEqual(2);
+    else expect(submissions).toHaveLength(1);
+    expect(submissions.every((signature) => signature === '1'.repeat(64))).toBe(
+      true,
+    );
+  });
+}
 
 test('disabled demo explains availability and blocks payment creation', async ({
   page,
