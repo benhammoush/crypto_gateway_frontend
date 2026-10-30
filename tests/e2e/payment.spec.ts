@@ -198,8 +198,9 @@ test('wallet failure hints stay dev-only and cannot trigger a second submission'
   if (!diagnosticsEnabled) expect(stored).toBeNull();
 });
 
-for (const loseResponse of [false, true]) {
-  test(`browser wallet flow verifies only after authoritative settlement${loseResponse ? ' after a lost submission response and reload' : ''}`, async ({
+for (const responseLoss of ['none', 'unrecorded', 'recorded'] as const) {
+  const loseResponse = responseLoss !== 'none';
+  test(`browser wallet flow verifies only after authoritative settlement${loseResponse ? ` after a lost ${responseLoss} submission response and reload` : ''}`, async ({
     page,
   }) => {
     const id = '22222222-2222-4222-8222-222222222222';
@@ -337,7 +338,10 @@ for (const loseResponse of [false, true]) {
           signature: '1'.repeat(64),
         });
         submissions.push(body.signature);
-        if (!recoverSubmission) return route.abort('timedout');
+        if (!recoverSubmission) {
+          if (responseLoss === 'recorded') submitted = true;
+          return route.abort('timedout');
+        }
         submitted = true;
       }
       await route.fulfill({
@@ -404,10 +408,10 @@ for (const loseResponse of [false, true]) {
           id,
         ),
       ).toBe('1'.repeat(64));
-      recoverSubmission = true;
       await page.reload();
-      await expect.poll(() => submitted).toBe(true);
+      recoverSubmission = true;
       await page.getByRole('button', { name: 'Refresh status' }).click();
+      await expect.poll(() => submitted).toBe(true);
       await expect(
         page.getByRole('button', { name: 'Pay with SOL' }),
       ).toHaveCount(0);
@@ -444,7 +448,9 @@ for (const loseResponse of [false, true]) {
       page.getByRole('dialog', { name: 'Payment verified' }),
     ).toBeVisible();
     expect(walletSends).toBe(1);
-    expect(submissions.length).toBeGreaterThanOrEqual(loseResponse ? 2 : 1);
+    if (responseLoss === 'unrecorded')
+      expect(submissions.length).toBeGreaterThanOrEqual(2);
+    else expect(submissions).toHaveLength(1);
     expect(submissions.every((signature) => signature === '1'.repeat(64))).toBe(
       true,
     );
