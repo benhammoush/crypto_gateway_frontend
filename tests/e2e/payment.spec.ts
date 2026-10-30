@@ -412,6 +412,13 @@ for (const responseLoss of ['none', 'unrecorded', 'recorded'] as const) {
       recoverSubmission = true;
       await page.getByRole('button', { name: 'Refresh status' }).click();
       await expect.poll(() => submitted).toBe(true);
+      // Read back the recovered attempt before allowing the fixture to settle.
+      await page.getByRole('button', { name: 'Refresh status' }).click();
+      await expect(
+        page.getByRole('dialog', { name: 'Verifying payment', exact: true }),
+      ).toBeVisible();
+      if (responseLoss === 'recorded') expect(submissions).toHaveLength(1);
+      else expect(submissions.length).toBeGreaterThanOrEqual(2);
       await expect(
         page.getByRole('button', { name: 'Pay with SOL' }),
       ).toHaveCount(0);
