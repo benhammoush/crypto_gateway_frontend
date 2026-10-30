@@ -18,6 +18,7 @@ the corresponding SOL transfer.
 ## Features
 
 - Display the locked SOL quote, expiry and merchant recipient.
+- Show a refreshing SOL/USD reference before creation and the saved locked rate afterward.
 - Request wallet approval and show submission and verification progress.
 - Refresh payment status without automatically sending another transfer.
 - Preserve checkout state within the browser tab when session storage is available.

@@ -40,6 +40,11 @@
   max-width: none;
 }
 
+.exchange-rate {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
 .checkout-layout > header {
   margin-bottom: 8px;
 }

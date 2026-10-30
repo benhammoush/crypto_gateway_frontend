@@ -2,10 +2,41 @@
   "openapi": "3.1.0",
   "info": {
     "title": "crypto_gateway",
-    "version": "0.2.0",
+    "version": "0.4.0",
     "description": "Non-custodial USD-to-SOL Devnet payments. Merchant endpoints require server-side credentials; checkout endpoints require payment-scoped capabilities."
   },
   "paths": {
+    "/v1/price": {
+      "get": {
+        "operationId": "getReferencePrice",
+        "description": "Public indicative SOL/USD reference from the payment pricing provider, not a locked payment quote. No payment is created or changed. Disabled when payments are disabled. No-store; limited to 6 requests per IP/minute and 60 globally/minute in addition to the general IP budget. fetchedAt is gateway retrieval time, not the time of the provider's last market update.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Validated reference price and gateway retrieval time.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferencePriceEnvelope"
+                }
+              }
+            }
+          },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/support/log-check": {
+      "post": {
+        "operationId": "checkSupportLogs",
+        "description": "Dev-only operator acceptance check, available even when payments are disabled. Requires a server-side merchant credential, consumes rate-limit counters and emits one fixed synthetic failure with the returned request ID. Returns 500 SUPPORT_LOG_CHECK deliberately; never creates, submits or settles a payment or calls providers. Limited to one authenticated check per merchant per minute. Not available in local or production environments. No request body is read or logged.",
+        "security": [{ "merchantBearer": [] }],
+        "responses": {
+          "500": { "$ref": "#/components/responses/Error" },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/v1/payments": {
       "post": {
         "operationId": "createPayment",
@@ -152,6 +183,37 @@
       }
     },
     "schemas": {
+      "ReferencePrice": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["usdPrice", "blockId", "fetchedAt"],
+        "properties": {
+          "usdPrice": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Positive USD per SOL, represented as decimal text, possibly in exponent notation."
+          },
+          "blockId": { "type": "integer", "minimum": 1 },
+          "fetchedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Gateway retrieval time in Unix milliseconds; not provider market-update time."
+          }
+        }
+      },
+      "ReferencePriceEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "meta"],
+        "properties": {
+          "data": { "$ref": "#/components/schemas/ReferencePrice" },
+          "meta": {
+            "type": "object",
+            "required": ["requestId"],
+            "properties": { "requestId": { "type": "string" } }
+          }
+        }
+      },
       "RpcId": {
         "oneOf": [
           { "type": "string", "minLength": 1, "maxLength": 64 },
@@ -364,7 +426,21 @@
             "properties": {
               "code": { "type": "string" },
               "message": { "type": "string" },
-              "requestId": { "type": "string" }
+              "requestId": { "type": "string" },
+              "diagnostic": {
+                "description": "Fixed configuration failure classification, returned only by GET /ready in dev. Never contains configuration values or upstream messages.",
+                "type": "string",
+                "enum": [
+                  "APP_ENV_INVALID",
+                  "CHECKOUT_ORIGIN_INVALID",
+                  "RPC_URL_INVALID",
+                  "RPC_URL_NOT_HTTPS",
+                  "RPC_URL_HAS_CREDENTIALS",
+                  "MERCHANT_ENCRYPTION_KEYS_INVALID",
+                  "PRICE_KEY_MISSING",
+                  "CHECKOUT_SECRET_TOO_SHORT"
+                ]
+              }
             }
           }
         }

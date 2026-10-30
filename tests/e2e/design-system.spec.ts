@@ -3,6 +3,23 @@
  */
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/v1/price', (route) =>
+    route.fulfill({
+      headers: {
+        'access-control-allow-origin': test.info().project.use.baseURL!,
+      },
+      json: {
+        data: {
+          usdPrice: '150.123456789',
+          blockId: 123,
+          fetchedAt: Date.now(),
+        },
+      },
+    }),
+  );
+});
+
 for (const width of [320, 390, 1440, 1920]) {
   test(`two-role demo stays readable and keyboard accessible at ${width}px`, async ({
     page,
@@ -159,6 +176,7 @@ for (const width of [320, 1440]) {
                   data: {
                     id,
                     usdCents: 1,
+                    quote: { usdPrice: '99.732716', blockId: 123 },
                     lamports: '100268',
                     displaySol: '0.000100268',
                     network: 'solana-devnet',

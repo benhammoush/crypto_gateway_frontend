@@ -19,6 +19,7 @@ import {
   WalletOutlined,
 } from './design-system';
 import { CheckoutLayout } from './CheckoutLayout';
+import { formatUsdRate } from './format-price';
 import type { Payment, Progress } from './types';
 
 /** Server state and guarded actions supplied by the checkout lifecycle. */
@@ -121,6 +122,9 @@ export function PaymentView(props: PaymentViewProps) {
                 </Typography.Title>
                 <Typography.Text type="secondary">
                   {p.displaySol} SOL
+                </Typography.Text>
+                <Typography.Text type="secondary" className="exchange-rate">
+                  Locked rate · 1 SOL ≈ ${formatUsdRate(p.quote.usdPrice)} USD
                 </Typography.Text>
                 {!submitted &&
                   p.status === 'pending' &&

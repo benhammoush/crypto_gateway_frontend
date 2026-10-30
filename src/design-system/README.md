@@ -19,6 +19,12 @@ on-chain verification. The underlying submission and settlement events remain
 distinct, but their labels appear in the receipt rather than adding redundant steps.
 Only backend settlement completes the verification step. Customer links never show business controls.
 The network Select locks after creation and clearly disables unsupported Mainnet.
+The visible business cart refreshes an indicative SOL/USD reference every 30 seconds.
+Hidden tabs pause requests; errors or references older than one minute hide the rate.
+After creation, only the payment's stored rate is shown; reference prices never
+calculate amounts or alter quotes. Retrieval time does not certify provider freshness.
+SOL/USD rates display to two decimal places with an approximation sign; stored quote
+precision and exact payable SOL amounts are unchanged.
 
 Ant Design Web3 supplies presentation-only `Address`; abbreviated addresses remain
 copyable in full. Amounts display the exact backend quote without number coercion,

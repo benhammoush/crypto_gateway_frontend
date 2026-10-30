@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-import { Payment } from './types';
+import { Payment, ReferencePrice } from './types';
 
 const origin =
   import.meta.env.VITE_API_ORIGIN ??
@@ -91,6 +91,44 @@ export async function paymentStatus(
   );
 }
 
+/** Fetch a recent indicative rate without credentials or payment creation.
+ * @param signal - Cancellation signal owned by the visible pre-checkout display.
+ * @returns Validated pricing evidence, never an authoritative payment quote.
+ */
+export async function referencePrice(
+  signal: AbortSignal,
+): Promise<ReferencePrice> {
+  const value = await request<ReferencePrice>(`${origin}/v1/price`, {
+    cache: 'no-store',
+    signal,
+  });
+  if (
+    !value ||
+    !validUsdPrice(value.usdPrice) ||
+    !Number.isSafeInteger(value.blockId) ||
+    value.blockId < 1 ||
+    !Number.isSafeInteger(value.fetchedAt) ||
+    value.fetchedAt > Date.now() + 5000 ||
+    Date.now() - value.fetchedAt >= 60_000
+  )
+    throw new ApiError('Reference price is unavailable.', 'INVALID_RESPONSE');
+  return value;
+}
+
+/** Recognize bounded positive decimal price text without changing its precision.
+ * @param value - Untrusted USD-per-SOL value.
+ * @returns Whether the value can safely be presented as a price.
+ */
+function validUsdPrice(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= 100 &&
+    /^\d+(?:\.\d+)?(?:e[+-]?\d+)?$/i.test(value) &&
+    Number.isFinite(Number(value)) &&
+    Number(value) > 0
+  );
+}
+
 /** Submit a wallet-returned signature for verification; submission alone is not settlement.
  * @param id - Payment identifier.
  * @param token - Checkout capability authorizing the submission.
@@ -130,6 +168,10 @@ function readPayment(value: unknown, id: string): Payment {
   const p = value as Payment;
   if (
     p.id !== id ||
+    !p.quote ||
+    !validUsdPrice(p.quote.usdPrice) ||
+    !Number.isSafeInteger(p.quote.blockId) ||
+    p.quote.blockId < 1 ||
     p.network !== 'solana-devnet' ||
     !Number.isSafeInteger(p.usdCents) ||
     p.usdCents < 1 ||

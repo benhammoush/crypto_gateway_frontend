@@ -8,6 +8,9 @@ import type { components } from './generated-api';
 /** Payment resource defined by the backend-owned API contract. */
 export type Payment = components['schemas']['Payment'];
 
+/** Indicative SOL/USD rate, separate from each payment's immutable quote. */
+export type ReferencePrice = components['schemas']['ReferencePrice'];
+
 export const PROGRESS = [
   'Awaiting wallet approval',
   'Transaction submitted',

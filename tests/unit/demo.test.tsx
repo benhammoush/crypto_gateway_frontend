@@ -20,6 +20,7 @@ import type { Payment } from '../../src/types';
 vi.mock('../../src/api', async (original) => ({
   ...(await original<typeof import('../../src/api')>()),
   request: vi.fn(),
+  referencePrice: vi.fn(() => new Promise(() => {})),
   paymentStatus: vi.fn(),
 }));
 

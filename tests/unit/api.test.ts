@@ -4,7 +4,12 @@
  */
 
 import { afterEach, expect, it, vi } from 'vitest';
-import { paymentStatus, request, submitSignature } from '../../src/api';
+import {
+  paymentStatus,
+  referencePrice,
+  request,
+  submitSignature,
+} from '../../src/api';
 
 const payment = {
   id: 'fixture',
@@ -18,6 +23,7 @@ const payment = {
   status: 'pending',
   signature: null,
   attempts: [],
+  quote: { usdPrice: '100.00000001', blockId: 123 },
 };
 
 it.each([
@@ -34,6 +40,9 @@ it.each([
   { ...payment, attempts: [null] },
   { ...payment, attempts: [{ signature: 'secret', state: 'pending' }] },
   { ...payment, signature: {} },
+  { ...payment, quote: null },
+  { ...payment, quote: { usdPrice: 'secret', blockId: 123 } },
+  { ...payment, quote: { usdPrice: '100', blockId: 0 } },
 ])(
   'rejects malformed successful responses for status and signature submission',
   async (data) => {
@@ -78,6 +87,36 @@ it('accepts an exact server quote and safe recorded attempts without converting 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+it('reads a reference without credentials, preserving exact price text', async () => {
+  const data = {
+    usdPrice: '150.123456789',
+    blockId: 123,
+    fetchedAt: Date.now(),
+  };
+  const fetch = vi.fn().mockResolvedValue(Response.json({ data }));
+  vi.stubGlobal('fetch', fetch);
+  const controller = new AbortController();
+  await expect(referencePrice(controller.signal)).resolves.toEqual(data);
+  expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/v1\/price$/), {
+    cache: 'no-store',
+    signal: expect.any(AbortSignal) as AbortSignal,
+  });
+});
+
+it.each([
+  null,
+  {},
+  { usdPrice: '0', blockId: 1, fetchedAt: Date.now() },
+  { usdPrice: 'NaN', blockId: 1, fetchedAt: Date.now() },
+  { usdPrice: '1e999', blockId: 1, fetchedAt: Date.now() },
+  { usdPrice: '100', blockId: 0, fetchedAt: Date.now() },
+  { usdPrice: '100', blockId: 1, fetchedAt: Date.now() - 60_000 },
+  { usdPrice: '100', blockId: 1, fetchedAt: Date.now() + 60_000 },
+])('rejects malformed or stale reference %j', async (data) => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ data })));
+  await expect(referencePrice(new AbortController().signal)).rejects.toThrow();
 });
 
 it.each([
