@@ -1,121 +1,42 @@
 export interface paths {
   '/v1/price': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
     /** @description Public indicative SOL/USD reference from the payment pricing provider, not a locked payment quote. No payment is created or changed. Disabled when payments are disabled. No-store; limited to 6 requests per IP/minute and 60 globally/minute in addition to the general IP budget. fetchedAt is gateway retrieval time, not the time of the provider's last market update. */
     get: operations['getReferencePrice'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
   };
   '/v1/support/log-check': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
     /** @description Dev-only operator acceptance check, available even when payments are disabled. Requires a server-side merchant credential, consumes rate-limit counters and emits one fixed synthetic failure with the returned request ID. Returns 500 SUPPORT_LOG_CHECK deliberately; never creates, submits or settles a payment or calls providers. Limited to one authenticated check per merchant per minute. Not available in local or production environments. No request body is read or logged. */
     post: operations['checkSupportLogs'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
   };
   '/v1/payments': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
     post: operations['createPayment'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
   };
   '/v1/payments/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
     get: operations['getPayment'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
   };
   '/v1/checkout/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
     get: operations['getCheckout'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
   };
   '/v1/checkout/{id}/rpc': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
     /** @description Bounded read-only RPC for active unsettled payments. Only getGenesisHash with [] and getLatestBlockhash with [{commitment: finalized}]. No batches, notifications, arbitrary destinations or transaction submission. Limited to 12 requests per checkout/minute and 60 globally/minute in addition to existing limits. Provider failures are sanitized gateway errors. */
     post: operations['checkoutRpc'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
   };
   '/v1/checkout/{id}/transactions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
     post: operations['submitTransaction'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
   };
 }
+/** OneOf type helpers */
+type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never };
+type XOR<T, U> = T | U extends object
+  ? (Without<T, U> & U) | (Without<U, T> & T)
+  : T | U;
+type OneOf<T extends any[]> = T extends [infer Only]
+  ? Only
+  : T extends [infer A, infer B, ...infer Rest]
+    ? OneOf<[XOR<A, B>, ...Rest]>
+    : never;
+
 export type webhooks = Record<string, never>;
+
 export interface components {
   schemas: {
     ReferencePrice: {
@@ -139,28 +60,31 @@ export interface components {
       /** @enum {string} */
       method: 'getGenesisHash' | 'getLatestBlockhash';
       params: unknown[];
-    } & (
-      | {
+    } & OneOf<
+      [
+        {
           /** @constant */
           method?: 'getGenesisHash';
           params?: unknown[];
-        }
-      | {
+        },
+        {
           /** @constant */
           method?: 'getLatestBlockhash';
           params?: {
             /** @constant */
             commitment: 'finalized';
           }[];
-        }
-    );
+        },
+      ]
+    >;
     CheckoutRpcResult: {
       /** @constant */
       jsonrpc: '2.0';
       id: components['schemas']['RpcId'];
-      result:
-        | 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG'
-        | {
+      result: OneOf<
+        [
+          'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG',
+          {
             context: {
               slot: number;
             };
@@ -169,7 +93,9 @@ export interface components {
               blockhash: string;
               lastValidBlockHeight: number;
             };
-          };
+          },
+        ]
+      >;
     };
     CreatePayment: {
       usdCents: number;
@@ -241,18 +167,12 @@ export interface components {
   responses: {
     /** @description Authoritative payment state. Creation and merchant reads include checkoutUrl; checkout reads do not. */
     Payment: {
-      headers: {
-        [name: string]: unknown;
-      };
       content: {
         'application/json': components['schemas']['PaymentEnvelope'];
       };
     };
     /** @description 400/401/403/404/409/413/415/422/429/500/503. Retry provider failures safely; never infer payment failure from transport errors. */
     Error: {
-      headers: {
-        [name: string]: unknown;
-      };
       content: {
         'application/json': components['schemas']['ErrorEnvelope'];
       };
@@ -265,22 +185,17 @@ export interface components {
   headers: never;
   pathItems: never;
 }
+
 export type $defs = Record<string, never>;
+
+export type external = Record<string, never>;
+
 export interface operations {
+  /** @description Public indicative SOL/USD reference from the payment pricing provider, not a locked payment quote. No payment is created or changed. Disabled when payments are disabled. No-store; limited to 6 requests per IP/minute and 60 globally/minute in addition to the general IP budget. fetchedAt is gateway retrieval time, not the time of the provider's last market update. */
   getReferencePrice: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
     responses: {
       /** @description Validated reference price and gateway retrieval time. */
       200: {
-        headers: {
-          [name: string]: unknown;
-        };
         content: {
           'application/json': components['schemas']['ReferencePriceEnvelope'];
         };
@@ -288,14 +203,8 @@ export interface operations {
       default: components['responses']['Error'];
     };
   };
+  /** @description Dev-only operator acceptance check, available even when payments are disabled. Requires a server-side merchant credential, consumes rate-limit counters and emits one fixed synthetic failure with the returned request ID. Returns 500 SUPPORT_LOG_CHECK deliberately; never creates, submits or settles a payment or calls providers. Limited to one authenticated check per merchant per minute. Not available in local or production environments. No request body is read or logged. */
   checkSupportLogs: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
     responses: {
       500: components['responses']['Error'];
       default: components['responses']['Error'];
@@ -303,12 +212,9 @@ export interface operations {
   };
   createPayment: {
     parameters: {
-      query?: never;
       header: {
         'Idempotency-Key': string;
       };
-      path?: never;
-      cookie?: never;
     };
     requestBody: {
       content: {
@@ -322,14 +228,10 @@ export interface operations {
   };
   getPayment: {
     parameters: {
-      query?: never;
-      header?: never;
       path: {
         id: components['parameters']['PaymentId'];
       };
-      cookie?: never;
     };
-    requestBody?: never;
     responses: {
       200: components['responses']['Payment'];
       default: components['responses']['Error'];
@@ -337,27 +239,21 @@ export interface operations {
   };
   getCheckout: {
     parameters: {
-      query?: never;
-      header?: never;
       path: {
         id: components['parameters']['PaymentId'];
       };
-      cookie?: never;
     };
-    requestBody?: never;
     responses: {
       200: components['responses']['Payment'];
       default: components['responses']['Error'];
     };
   };
+  /** @description Bounded read-only RPC for active unsettled payments. Only getGenesisHash with [] and getLatestBlockhash with [{commitment: finalized}]. No batches, notifications, arbitrary destinations or transaction submission. Limited to 12 requests per checkout/minute and 60 globally/minute in addition to existing limits. Provider failures are sanitized gateway errors. */
   checkoutRpc: {
     parameters: {
-      query?: never;
-      header?: never;
       path: {
         id: components['parameters']['PaymentId'];
       };
-      cookie?: never;
     };
     requestBody: {
       content: {
@@ -367,9 +263,6 @@ export interface operations {
     responses: {
       /** @description JSON-RPC 2.0 result, not a gateway data envelope. Provider credentials and extra fields are never returned. */
       200: {
-        headers: {
-          [name: string]: unknown;
-        };
         content: {
           'application/json': components['schemas']['CheckoutRpcResult'];
         };
@@ -379,12 +272,9 @@ export interface operations {
   };
   submitTransaction: {
     parameters: {
-      query?: never;
-      header?: never;
       path: {
         id: components['parameters']['PaymentId'];
       };
-      cookie?: never;
     };
     requestBody: {
       content: {

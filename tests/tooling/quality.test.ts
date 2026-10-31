@@ -5,6 +5,7 @@
 
 import { readFileSync } from 'node:fs';
 import { ESLint } from 'eslint';
+import type { Linter } from 'eslint';
 import { expect, it } from 'vitest';
 
 const eslint = new ESLint();
@@ -42,3 +43,31 @@ it('retains zero-warning lint and full plus runtime dependency audits', () => {
   expect(scripts['ci:quality']).toBe('npm run check');
   expect(scripts.check).toContain('npm run audit:dependencies');
 });
+
+// Temporary matcher override must preserve file selection and blocking rules.
+it('keeps application and tooling files linted with the patched matcher', async () => {
+  for (const file of [
+    'src/App.tsx',
+    'tests/unit/demo.test.tsx',
+    'scripts/generate-contract.mjs',
+  ]) {
+    expect(await eslint.isPathIgnored(file)).toBe(false);
+    const config = (await eslint.calculateConfigForFile(file)) as
+      Linter.Config | undefined;
+    const documentation = config?.rules?.['jsdoc/require-jsdoc'];
+    expect(
+      Array.isArray(documentation) ? documentation[0] : documentation,
+    ).toBe(2);
+    if (file.endsWith('.tsx')) {
+      const promises =
+        config?.rules?.['@typescript-eslint/no-floating-promises'];
+      expect(Array.isArray(promises) ? promises[0] : promises).toBe(2);
+    }
+  }
+  for (const file of [
+    'dist/index.js',
+    'node_modules/fixture/index.js',
+    'src/generated-api.ts',
+  ])
+    expect(await eslint.isPathIgnored(file)).toBe(true);
+}, 30_000);

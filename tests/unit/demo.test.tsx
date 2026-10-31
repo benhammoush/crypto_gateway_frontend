@@ -14,7 +14,8 @@ import {
   within,
 } from '@testing-library/react';
 import App from '../../src/App';
-import { paymentStatus, request } from '../../src/api';
+import { paymentStatus, request, submitSignature } from '../../src/api';
+import { connectWallet, sendPayment } from '../../src/wallet';
 import type { Payment } from '../../src/types';
 
 vi.mock('../../src/api', async (original) => ({
@@ -22,6 +23,12 @@ vi.mock('../../src/api', async (original) => ({
   request: vi.fn(),
   referencePrice: vi.fn(() => new Promise(() => {})),
   paymentStatus: vi.fn(),
+  submitSignature: vi.fn(),
+}));
+vi.mock('../../src/wallet', async (original) => ({
+  ...(await original<typeof import('../../src/wallet')>()),
+  connectWallet: vi.fn(),
+  sendPayment: vi.fn(),
 }));
 
 afterEach(() => {
@@ -29,6 +36,7 @@ afterEach(() => {
   history.replaceState(null, '', '/');
   sessionStorage.clear();
   vi.resetAllMocks();
+  vi.restoreAllMocks();
 });
 
 /** Disabled form controls alone must not be the submission guard. */
@@ -258,6 +266,13 @@ describe('server-reported demo availability', () => {
     );
     expect(request).toHaveBeenCalledTimes(2);
     const first = vi.mocked(request).mock.calls[1][1]!;
+    expect(first).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({ usdCents: 1000 }),
+    });
+    expect(new Headers(first.headers).get('idempotency-key')).toMatch(
+      /^[a-f0-9-]{36}$/,
+    );
     submit();
     await waitFor(() => expect(request).toHaveBeenCalledTimes(3));
     expect(vi.mocked(request).mock.calls[2][1]).toMatchObject({
@@ -267,5 +282,60 @@ describe('server-reported demo availability', () => {
     await waitFor(() =>
       expect(screen.getByRole('alert').textContent).toBe(message),
     );
+    expect(connectWallet).not.toHaveBeenCalled();
+    expect(sendPayment).not.toHaveBeenCalled();
+    expect(submitSignature).not.toHaveBeenCalled();
+  });
+
+  it('rotates the creation request key only when cents change, without opening or sending through the wallet', async () => {
+    const firstKey = '11111111-1111-4111-8111-111111111111';
+    const changedKey = '22222222-2222-4222-8222-222222222222';
+    const generateKey = vi
+      .spyOn(crypto, 'randomUUID')
+      .mockReturnValueOnce(firstKey)
+      .mockReturnValue(changedKey);
+    vi.mocked(request)
+      .mockResolvedValueOnce({ enabled: true })
+      .mockRejectedValue(new Error('Unable to create payment.'));
+    render(<App />);
+    const button = screen.getByRole<HTMLButtonElement>('button', {
+      name: /^Create payment link$/,
+    });
+    await waitFor(() => expect(button.disabled).toBe(false));
+    expect(request).toHaveBeenCalledOnce();
+
+    for (const [index, amount] of [
+      '10.00',
+      '10.0',
+      '12.34',
+      '12.34',
+    ].entries()) {
+      fireEvent.change(screen.getByLabelText('Cart total (USD)'), {
+        target: { value: amount },
+      });
+      expect(request).toHaveBeenCalledTimes(index + 1);
+      submit();
+      await waitFor(() => {
+        expect(screen.getByRole('alert').textContent).toBe(
+          'Unable to create payment.',
+        );
+        expect(button.disabled).toBe(false);
+      });
+      expect(request).toHaveBeenCalledTimes(index + 2);
+      expect(request).toHaveBeenLastCalledWith('/api/demo/payments', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': index < 2 ? firstKey : changedKey,
+        },
+        body: JSON.stringify({ usdCents: index < 2 ? 1000 : 1234 }),
+      });
+      expect(generateKey).toHaveBeenCalledTimes(index < 2 ? 1 : 2);
+      expect(connectWallet).not.toHaveBeenCalled();
+      expect(sendPayment).not.toHaveBeenCalled();
+      expect(submitSignature).not.toHaveBeenCalled();
+      expect(paymentStatus).not.toHaveBeenCalled();
+      expect(location.pathname).toBe('/');
+    }
   });
 });
