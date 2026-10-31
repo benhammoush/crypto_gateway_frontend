@@ -4,7 +4,8 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import openapiTS, { astToString } from 'openapi-typescript';
+import assert from 'node:assert/strict';
+import openapiTS from 'openapi-typescript';
 import { format, resolveConfig } from 'prettier';
 
 // Explicit source selection only; no sibling/main/latest fallback.
@@ -22,10 +23,68 @@ if (!source || !revision || !/^(?:local|[a-f0-9]{40})$/.test(revision)) {
 }
 const text = await readFile(source, 'utf8');
 const schema = JSON.parse(text);
-const ast = await openapiTS(schema);
+assert.match(schema.openapi ?? '', /^3\.\d+\.\d+$/);
+assert.equal(typeof schema.info?.version, 'string');
+assert.ok(
+  schema.paths &&
+    typeof schema.paths === 'object' &&
+    !Array.isArray(schema.paths),
+);
+
+// Keep local-reference and operation-identity guards while the older generator is pinned.
+/** Reject unresolved or external references in the self-contained pinned contract.
+ * @param value - JSON node whose descendants are checked against the root schema.
+ */
+function validateReferences(value) {
+  if (!value || typeof value !== 'object') return;
+  if ('$ref' in value) {
+    assert.equal(typeof value.$ref, 'string');
+    assert.ok(
+      value.$ref.startsWith('#/'),
+      'Contract references must be local.',
+    );
+    let target = schema;
+    for (const part of value.$ref.slice(2).split('/')) {
+      const key = decodeURIComponent(part)
+        .replaceAll('~1', '/')
+        .replaceAll('~0', '~');
+      assert.ok(
+        target && typeof target === 'object' && Object.hasOwn(target, key),
+        'Unresolved contract reference.',
+      );
+      target = target[key];
+    }
+  }
+  for (const child of Object.values(value)) validateReferences(child);
+}
+validateReferences(schema);
+const operationIds = new Set();
+for (const path of [
+  ...Object.values(schema.paths),
+  ...Object.values(schema.webhooks ?? {}),
+]) {
+  for (const method of [
+    'get',
+    'put',
+    'post',
+    'delete',
+    'options',
+    'head',
+    'patch',
+    'trace',
+  ]) {
+    const id = path?.[method]?.operationId;
+    if (id === undefined) continue;
+    assert.equal(typeof id, 'string');
+    assert.ok(!operationIds.has(id), 'Duplicate contract operationId.');
+    operationIds.add(id);
+  }
+}
+// Temporary 6.7.6 pin avoids Redocly's vulnerable matcher; revisit when v7 fixes it.
+const output = await openapiTS(schema, { commentHeader: '' });
 const canonical = await format(JSON.stringify(schema), { parser: 'json' });
 const hash = createHash('sha256').update(canonical).digest('hex');
-const types = await format(astToString(ast), {
+const types = await format(output, {
   ...(await resolveConfig('src/generated-api.ts')),
   parser: 'typescript',
 });

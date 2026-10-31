@@ -60,3 +60,12 @@ pass does not mean there are no advisories.
 Dependency versions live in `package.json` and the lockfile. Solana web3.js 3.1.0
 replaced the v1 jayson/stream-json/uuid advisory chain without transitive overrides.
 Preserve the reviewed synchronous wallet/message behavior when upgrading.
+
+Contract generation temporarily pins `openapi-typescript` 6.7.6 because version 7
+pulls in Redocly's vulnerable minimatch dependency. Its undici dependency is scoped
+to patched 6.29.1; lint's minimatch 10 consumers are scoped to patched 11.0.3.
+The generator accepts self-contained OpenAPI JSON with local references only and
+checks operation IDs, reference resolution, provenance and generated-type drift.
+This is not a replacement for comprehensive API schema validation. Revisit the
+generator pin when upstream removes the vulnerable dependency, then revalidate
+the generated types and remove overrides no longer needed by their consumers.
