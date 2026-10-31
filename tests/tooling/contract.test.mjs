@@ -88,6 +88,7 @@ it.each([
   'unresolved reference',
   'external reference',
   'duplicate operation',
+  'path/webhook operation collision',
 ])('rejects invalid schema before writing generated files: %s', (fault) => {
   const schemaPath = join(directory, 'contract.openapi.json');
   const schema = JSON.parse(readFileSync(schemaPath, 'utf8'));
@@ -103,6 +104,10 @@ it.each([
   if (fault === 'duplicate operation')
     schema.paths['/v1/price'].get.operationId =
       schema.paths['/v1/payments'].post.operationId;
+  if (fault === 'path/webhook operation collision')
+    schema.webhooks = {
+      fixture: { post: schema.paths['/v1/payments'].post },
+    };
   writeFileSync(schemaPath, JSON.stringify(schema));
   const generated = readFileSync(
     join(directory, 'src/generated-api.ts'),
@@ -114,6 +119,11 @@ it.each([
   );
   const result = run(['contract.openapi.json', 'a'.repeat(40)]);
   expect(result.status).not.toBe(0);
+  if (
+    fault === 'duplicate operation' ||
+    fault === 'path/webhook operation collision'
+  )
+    expect(result.stderr).toContain('Duplicate contract operationId.');
   expect(readFileSync(join(directory, 'src/generated-api.ts'), 'utf8')).toBe(
     generated,
   );

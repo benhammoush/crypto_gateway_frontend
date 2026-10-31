@@ -59,7 +59,10 @@ function validateReferences(value) {
 }
 validateReferences(schema);
 const operationIds = new Set();
-for (const path of Object.values(schema.paths)) {
+for (const path of [
+  ...Object.values(schema.paths),
+  ...Object.values(schema.webhooks ?? {}),
+]) {
   for (const method of [
     'get',
     'put',
