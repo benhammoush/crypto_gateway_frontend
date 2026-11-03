@@ -85,7 +85,7 @@ describe('server-reported demo availability', () => {
     );
     submit();
     await screen.findByText('Created · amount locked');
-    await screen.findByText('0.100000000 SOL');
+    await screen.findByRole('heading', { name: '0.100000000 SOL' });
     expect(
       screen.getByLabelText<HTMLInputElement>('Cart total (USD)').disabled,
     ).toBe(true);

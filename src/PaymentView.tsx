@@ -76,6 +76,23 @@ export function PaymentView(props: PaymentViewProps) {
     <Card
       className="checkout-card"
       size="small"
+      extra={
+        p && (
+          <Tag
+            color={
+              verified ? 'success' : p.status === 'expired' ? 'warning' : 'blue'
+            }
+          >
+            {verified
+              ? 'Verified'
+              : submitted
+                ? 'Submitted'
+                : p.status === 'expired'
+                  ? 'Expired'
+                  : 'Pending'}
+          </Tag>
+        )
+      }
       title={
         <Flex align="center" gap="small">
           <span className="panel-icon" aria-hidden="true">
@@ -90,28 +107,9 @@ export function PaymentView(props: PaymentViewProps) {
       <Flex vertical gap="small">
         {p ? (
           <>
-            <div aria-label="Payment summary">
-              <Flex vertical gap={4}>
-                <Flex align="center" justify="space-between" gap="small" wrap>
-                  <Typography.Text type="secondary">Cart total</Typography.Text>
-                  <Tag
-                    color={
-                      verified
-                        ? 'success'
-                        : p.status === 'expired'
-                          ? 'warning'
-                          : 'blue'
-                    }
-                  >
-                    {verified
-                      ? 'Verified'
-                      : submitted
-                        ? 'Submitted'
-                        : p.status === 'expired'
-                          ? 'Expired'
-                          : 'Pending'}
-                  </Tag>
-                </Flex>
+            <div aria-label="Payment summary" className="checkout-summary">
+              <Flex vertical align="center" gap={8}>
+                <Typography.Text type="secondary">Cart total</Typography.Text>
                 <Typography.Title
                   level={3}
                   className="amount-total"
@@ -120,16 +118,21 @@ export function PaymentView(props: PaymentViewProps) {
                   ${(p.usdCents / 100).toFixed(2)}{' '}
                   <Typography.Text type="secondary">USD</Typography.Text>
                 </Typography.Title>
-                <Typography.Text type="secondary">
-                  {p.displaySol} SOL
-                </Typography.Text>
+                <Typography.Title
+                  level={3}
+                  className="amount-total"
+                  style={{ margin: 0 }}
+                >
+                  {p.displaySol}{' '}
+                  <Typography.Text type="secondary">SOL</Typography.Text>
+                </Typography.Title>
                 <Typography.Text type="secondary" className="exchange-rate">
                   Locked rate · 1 SOL ≈ ${formatUsdRate(p.quote.usdPrice)} USD
                 </Typography.Text>
                 {!submitted &&
                   p.status === 'pending' &&
                   props.remaining > 0 && (
-                    <Typography.Text type="secondary">
+                    <Typography.Text type="secondary" className="quote-timer">
                       Quote locked · {Math.floor(props.remaining / 60)}:
                       {String(props.remaining % 60).padStart(2, '0')}
                     </Typography.Text>
@@ -158,39 +161,48 @@ export function PaymentView(props: PaymentViewProps) {
               ]}
             />
             {!submitted && props.canPay && (
-              <>
+              <Flex
+                vertical
+                align="center"
+                gap="small"
+                className="checkout-actions"
+              >
                 {props.walletAddress && (
-                  <Typography.Text type="secondary" className="address">
-                    Connected:{' '}
+                  <Flex
+                    align="center"
+                    justify="space-between"
+                    gap="small"
+                    wrap
+                    className="checkout-wallet"
+                  >
+                    <Typography.Text
+                      type="secondary"
+                      className="connected-wallet-label"
+                    >
+                      <span
+                        className="wallet-connection-dot"
+                        aria-hidden="true"
+                      />
+                      Connected wallet
+                    </Typography.Text>
                     <Address
+                      className="address"
                       address={props.walletAddress}
                       addressPrefix={false}
                       ellipsis
                     />
-                  </Typography.Text>
+                  </Flex>
                 )}
-                <Flex gap="small">
-                  <Button
-                    block
-                    onClick={props.connect}
-                    loading={props.connecting}
-                    disabled={
-                      props.busy || props.connecting || !!props.walletAddress
-                    }
-                  >
-                    Connect wallet
-                  </Button>
-                  <Button
-                    block
-                    type="primary"
-                    onClick={props.pay}
-                    loading={props.busy}
-                    disabled={props.busy || !props.walletAddress}
-                  >
-                    Pay with SOL
-                  </Button>
-                </Flex>
-              </>
+                <Button
+                  type="primary"
+                  size="large"
+                  onClick={props.walletAddress ? props.pay : props.connect}
+                  loading={props.busy || props.connecting}
+                  disabled={props.busy || props.connecting}
+                >
+                  {props.walletAddress ? 'Pay with SOL' : 'Connect wallet'}
+                </Button>
+              </Flex>
             )}
             {submitted && (
               <Button block disabled>

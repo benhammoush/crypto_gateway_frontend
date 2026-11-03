@@ -6,6 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  act,
   cleanup,
   fireEvent,
   render as renderReact,
@@ -61,6 +62,39 @@ async function pay() {
   fireEvent.click(screen.getByRole('button', { name: 'Pay with SOL' }));
 }
 
+/** Expose only lifecycle events; connection and submission remain mocked separately.
+ * @param cleanupSupported - Whether the fixture exposes listener removal.
+ * @returns Provider spies and a dispatcher for the latest registered listener.
+ */
+function walletEvents(cleanupSupported = true) {
+  const on =
+    vi.fn<
+      (event: 'disconnect' | 'accountChanged', listener: () => void) => void
+    >();
+  const removeListener = vi.fn();
+  vi.stubGlobal('phantom', {
+    solana: {
+      isPhantom: true,
+      on,
+      ...(cleanupSupported ? { removeListener } : {}),
+    },
+  });
+  return {
+    on,
+    removeListener,
+    /** Dispatch a lifecycle event without connecting or sending a transaction.
+     * @param event - Provider event to deliver to checkout.
+     */
+    emit(event: 'disconnect' | 'accountChanged') {
+      act(() =>
+        on.mock.calls
+          .filter(([name]) => name === event)
+          .at(-1)![1](),
+      );
+    },
+  };
+}
+
 beforeEach(() => {
   vi.mocked(connectWallet).mockResolvedValue('1'.repeat(32));
   const now = Date.now();
@@ -90,6 +124,7 @@ afterEach(() => {
   vi.resetAllMocks();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   sessionStorage.clear();
 });
 
@@ -104,16 +139,13 @@ describe('reference form', () => {
 });
 
 describe('checkout', () => {
-  it('connects without sending funds and keeps payment approval separate', async () => {
+  it('changes the single connection button into a separate payment action without sending', async () => {
     vi.mocked(paymentStatus).mockResolvedValue(payment);
     render(<Checkout id={payment.id} token="token" />);
     const connect = await screen.findByRole('button', {
       name: 'Connect wallet',
     });
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Pay with SOL' })
-        .disabled,
-    ).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
     fireEvent.click(connect);
     await waitFor(() =>
       expect(
@@ -122,6 +154,8 @@ describe('checkout', () => {
       ).toBe(false),
     );
     expect(connectWallet).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Connect wallet' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Pay with SOL' })).toBe(connect);
     expect(sendPayment).not.toHaveBeenCalled();
     expect(submitSignature).not.toHaveBeenCalled();
     expect(
@@ -144,11 +178,164 @@ describe('checkout', () => {
       'No payment was requested.',
     );
     expect(document.body.textContent).not.toContain('private wallet details');
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Pay with SOL' })
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Connect wallet' })
         .disabled,
-    ).toBe(true);
+    ).toBe(false);
     expect(sendPayment).not.toHaveBeenCalled();
+  });
+
+  it('disables the unified action while connecting and ignores repeated clicks', async () => {
+    let approve!: (address: string) => void;
+    vi.mocked(connectWallet).mockImplementation(
+      () => new Promise((resolve) => (approve = resolve)),
+    );
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    render(<Checkout id={payment.id} token="token" />);
+    const action = await screen.findByRole<HTMLButtonElement>('button', {
+      name: 'Connect wallet',
+    });
+    fireEvent.click(action);
+    expect(action.disabled).toBe(true);
+    fireEvent.click(action);
+    expect(connectWallet).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+    expect(sendPayment).not.toHaveBeenCalled();
+    approve('1'.repeat(32));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Pay with SOL' })).toBe(action);
+      expect(action.disabled).toBe(false);
+    });
+    expect(sendPayment).not.toHaveBeenCalled();
+    expect(submitSignature).not.toHaveBeenCalled();
+    expect(
+      sessionStorage.getItem(
+        `crypto_gateway:signature:${payment.id}:uncertain`,
+      ),
+    ).toBeNull();
+  });
+
+  for (const event of ['disconnect', 'accountChanged'] as const) {
+    it(`shares ${event} listeners across reconnections and remounts without listener removal`, async () => {
+      const events = walletEvents(false);
+      vi.mocked(paymentStatus).mockResolvedValue(payment);
+      const view = render(<Checkout id={payment.id} token="token" />);
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Connect wallet' }),
+      );
+      await screen.findByRole('button', { name: 'Pay with SOL' });
+      events.emit(event);
+      expect(screen.queryByText('Connected wallet')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Connect wallet' }));
+      await screen.findByRole('button', { name: 'Pay with SOL' });
+      expect(events.on).toHaveBeenCalledTimes(2);
+      events.emit(event);
+      expect(screen.queryByText('Connected wallet')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+      expect(sendPayment).not.toHaveBeenCalled();
+      expect(submitSignature).not.toHaveBeenCalled();
+      view.unmount();
+      expect(() => events.emit(event)).not.toThrow();
+      render(<Checkout id={payment.id} token="token" />);
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Connect wallet' }),
+      );
+      await screen.findByRole('button', { name: 'Pay with SOL' });
+      expect(events.on).toHaveBeenCalledTimes(2);
+      events.emit(event);
+      expect(screen.queryByText('Connected wallet')).toBeNull();
+      expect(events.removeListener).not.toHaveBeenCalled();
+    });
+
+    it(`requires reconnection after ${event} without sending and removes listeners on unmount`, async () => {
+      const events = walletEvents();
+      vi.mocked(paymentStatus).mockResolvedValue(payment);
+      const view = render(<Checkout id={payment.id} token="token" />);
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Connect wallet' }),
+      );
+      await screen.findByRole('button', { name: 'Pay with SOL' });
+      expect(screen.getByText('Connected wallet')).toBeTruthy();
+      events.emit(event);
+      expect(screen.queryByText('Connected wallet')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', {
+          name: 'Connect wallet',
+        }).disabled,
+      ).toBe(false);
+      expect(sendPayment).not.toHaveBeenCalled();
+      expect(submitSignature).not.toHaveBeenCalled();
+      expect(
+        sessionStorage.getItem(
+          `crypto_gateway:signature:${payment.id}:uncertain`,
+        ),
+      ).toBeNull();
+      view.unmount();
+      for (const [name, listener] of events.on.mock.calls)
+        expect(events.removeListener).toHaveBeenCalledWith(name, listener);
+    });
+
+    it(`ignores a stale connection result after ${event}`, async () => {
+      const events = walletEvents();
+      let approve!: (address: string) => void;
+      vi.mocked(connectWallet).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            approve = resolve;
+          }),
+      );
+      vi.mocked(paymentStatus).mockResolvedValue(payment);
+      render(<Checkout id={payment.id} token="token" />);
+      const action = await screen.findByRole<HTMLButtonElement>('button', {
+        name: 'Connect wallet',
+      });
+      fireEvent.click(action);
+      events.emit(event);
+      act(() => approve('1'.repeat(32)));
+      await waitFor(() => expect(action.disabled).toBe(false));
+      expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+      expect(screen.queryByText('Connected wallet')).toBeNull();
+      expect(sendPayment).not.toHaveBeenCalled();
+    });
+  }
+
+  it('retains uncertainty when the account changes during wallet submission', async () => {
+    const events = walletEvents();
+    let reject!: (error: Error) => void;
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    vi.mocked(sendPayment).mockImplementation(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    render(<Checkout id={payment.id} token="token" />);
+    await pay();
+    events.emit('accountChanged');
+    expect(
+      sessionStorage.getItem(
+        `crypto_gateway:signature:${payment.id}:uncertain`,
+      ),
+    ).toBe('true');
+    act(() =>
+      reject(new WalletSubmissionUncertain('Wallet submission is uncertain.')),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain(
+        'Wallet submission is uncertain.',
+      ),
+    );
+    expect(screen.queryByRole('button', { name: 'Connect wallet' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+    expect(
+      sessionStorage.getItem(
+        `crypto_gateway:signature:${payment.id}:uncertain`,
+      ),
+    ).toBe('true');
+    expect(sendPayment).toHaveBeenCalledOnce();
+    expect(submitSignature).not.toHaveBeenCalled();
   });
 
   it('can dismiss and reopen the submitted receipt without sending again', async () => {
@@ -215,7 +402,9 @@ describe('checkout', () => {
       displaySol: '9007199.254740993',
     });
     render(<Checkout id={payment.id} token="token" />);
-    expect(await screen.findByText('9007199.254740993 SOL')).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: '9007199.254740993 SOL' }),
+    ).toBeTruthy();
     expect(screen.getByText(payment.recipient, { exact: false })).toBeTruthy();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(document.body.textContent).not.toMatch(/ETH|0xrecipient/);

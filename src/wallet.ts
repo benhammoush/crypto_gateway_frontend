@@ -23,6 +23,19 @@ interface WalletRequest {
 /** Injected wallet capabilities accepted at the browser boundary. */
 export interface PhantomProvider {
   isPhantom?: boolean;
+  /** Observe a wallet change that invalidates the displayed connected account.
+   * @param event - Provider lifecycle event.
+   * @param listener - Callback that clears checkout's connection state.
+   */
+  on?(event: 'disconnect' | 'accountChanged', listener: () => void): void;
+  /** Remove a previously registered lifecycle listener.
+   * @param event - Provider lifecycle event.
+   * @param listener - Previously registered callback.
+   */
+  removeListener?(
+    event: 'disconnect' | 'accountChanged',
+    listener: () => void,
+  ): void;
   /** Ask the user to connect and expose the approved public key.
    * @returns The wallet-approved public key.
    */
@@ -46,6 +59,52 @@ declare global {
   interface Window {
     phantom?: { solana?: PhantomProvider };
   }
+}
+
+/** Shared provider dispatchers retain only callbacks for currently active checkouts. */
+interface WalletEventSubscription {
+  listeners: Set<() => void>;
+  /** Relay a provider event to the currently subscribed checkout callbacks. */
+  dispatch: () => void;
+}
+
+const walletEventSubscriptions = new WeakMap<
+  PhantomProvider,
+  WalletEventSubscription
+>();
+
+/** Observe wallet changes without accumulating handlers on providers lacking removal.
+ * @param provider - Injected provider whose event capabilities may be absent.
+ * @param invalidate - Callback for the active checkout's connection only.
+ * @returns Cleanup that releases the checkout and detaches handlers when supported, or undefined without events.
+ */
+export function subscribeWalletEvents(
+  provider: PhantomProvider | undefined,
+  invalidate: () => void,
+): (() => void) | undefined {
+  if (!provider?.on) return;
+  let subscription = walletEventSubscriptions.get(provider);
+  if (!subscription) {
+    const listeners = new Set<() => void>();
+    /** Notify active checkouts without retaining callbacks from cleaned-up connections. */
+    function dispatch() {
+      for (const listener of listeners) listener();
+    }
+    provider.on('disconnect', dispatch);
+    provider.on('accountChanged', dispatch);
+    subscription = { listeners, dispatch };
+    walletEventSubscriptions.set(provider, subscription);
+  }
+  const { listeners, dispatch } = subscription;
+  listeners.add(invalidate);
+  return () => {
+    if (!listeners.delete(invalidate)) return;
+    if (listeners.size === 0 && provider.removeListener) {
+      provider.removeListener('disconnect', dispatch);
+      provider.removeListener('accountChanged', dispatch);
+      walletEventSubscriptions.delete(provider);
+    }
+  };
 }
 
 const WALLET_DIAGNOSTICS = [
