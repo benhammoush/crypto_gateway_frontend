@@ -524,15 +524,18 @@ export function Checkout(props: CheckoutProps) {
       stopWalletEvents.current = undefined;
       const provider = window.phantom?.solana;
       const version = ++walletConnectionVersion.current;
+      let listening = true;
       /** Require an explicit reconnection without changing payment recovery guards. */
       function invalidateWalletConnection() {
+        if (!listening) return;
         walletConnectionVersion.current++;
         setWalletAddress('');
       }
-      if (provider?.on && provider.removeListener) {
+      if (provider?.on) {
         provider.on('disconnect', invalidateWalletConnection);
         provider.on('accountChanged', invalidateWalletConnection);
         stopWalletEvents.current = () => {
+          listening = false;
           provider.removeListener?.('disconnect', invalidateWalletConnection);
           provider.removeListener?.(
             'accountChanged',

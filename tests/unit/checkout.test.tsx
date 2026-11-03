@@ -63,15 +63,22 @@ async function pay() {
 }
 
 /** Expose only lifecycle events; connection and submission remain mocked separately.
+ * @param cleanupSupported - Whether the fixture exposes listener removal.
  * @returns Provider spies and a dispatcher for the latest registered listener.
  */
-function walletEvents() {
+function walletEvents(cleanupSupported = true) {
   const on =
     vi.fn<
       (event: 'disconnect' | 'accountChanged', listener: () => void) => void
     >();
   const removeListener = vi.fn();
-  vi.stubGlobal('phantom', { solana: { isPhantom: true, on, removeListener } });
+  vi.stubGlobal('phantom', {
+    solana: {
+      isPhantom: true,
+      on,
+      ...(cleanupSupported ? { removeListener } : {}),
+    },
+  });
   return {
     on,
     removeListener,
@@ -210,6 +217,31 @@ describe('checkout', () => {
   });
 
   for (const event of ['disconnect', 'accountChanged'] as const) {
+    it(`handles ${event} without listener removal and ignores callbacks from an earlier connection`, async () => {
+      const events = walletEvents(false);
+      vi.mocked(paymentStatus).mockResolvedValue(payment);
+      const view = render(<Checkout id={payment.id} token="token" />);
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Connect wallet' }),
+      );
+      await screen.findByRole('button', { name: 'Pay with SOL' });
+      const oldListener = events.on.mock.calls.find(
+        ([name]) => name === event,
+      )![1];
+      events.emit(event);
+      expect(screen.queryByText('Connected wallet')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Connect wallet' }));
+      await screen.findByRole('button', { name: 'Pay with SOL' });
+      act(oldListener);
+      expect(screen.getByText('Connected wallet')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Pay with SOL' })).toBeTruthy();
+      expect(sendPayment).not.toHaveBeenCalled();
+      expect(submitSignature).not.toHaveBeenCalled();
+      view.unmount();
+      expect(() => events.emit(event)).not.toThrow();
+      expect(events.removeListener).not.toHaveBeenCalled();
+    });
+
     it(`requires reconnection after ${event} without sending and removes listeners on unmount`, async () => {
       const events = walletEvents();
       vi.mocked(paymentStatus).mockResolvedValue(payment);
