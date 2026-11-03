@@ -6,6 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  act,
   cleanup,
   fireEvent,
   render as renderReact,
@@ -61,6 +62,32 @@ async function pay() {
   fireEvent.click(screen.getByRole('button', { name: 'Pay with SOL' }));
 }
 
+/** Expose only lifecycle events; connection and submission remain mocked separately.
+ * @returns Provider spies and a dispatcher for the latest registered listener.
+ */
+function walletEvents() {
+  const on =
+    vi.fn<
+      (event: 'disconnect' | 'accountChanged', listener: () => void) => void
+    >();
+  const removeListener = vi.fn();
+  vi.stubGlobal('phantom', { solana: { isPhantom: true, on, removeListener } });
+  return {
+    on,
+    removeListener,
+    /** Dispatch a lifecycle event without connecting or sending a transaction.
+     * @param event - Provider event to deliver to checkout.
+     */
+    emit(event: 'disconnect' | 'accountChanged') {
+      act(() =>
+        on.mock.calls
+          .filter(([name]) => name === event)
+          .at(-1)![1](),
+      );
+    },
+  };
+}
+
 beforeEach(() => {
   vi.mocked(connectWallet).mockResolvedValue('1'.repeat(32));
   const now = Date.now();
@@ -90,6 +117,7 @@ afterEach(() => {
   vi.resetAllMocks();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   sessionStorage.clear();
 });
 
@@ -179,6 +207,97 @@ describe('checkout', () => {
         `crypto_gateway:signature:${payment.id}:uncertain`,
       ),
     ).toBeNull();
+  });
+
+  for (const event of ['disconnect', 'accountChanged'] as const) {
+    it(`requires reconnection after ${event} without sending and removes listeners on unmount`, async () => {
+      const events = walletEvents();
+      vi.mocked(paymentStatus).mockResolvedValue(payment);
+      const view = render(<Checkout id={payment.id} token="token" />);
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Connect wallet' }),
+      );
+      await screen.findByRole('button', { name: 'Pay with SOL' });
+      expect(screen.getByText('Connected wallet')).toBeTruthy();
+      events.emit(event);
+      expect(screen.queryByText('Connected wallet')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', {
+          name: 'Connect wallet',
+        }).disabled,
+      ).toBe(false);
+      expect(sendPayment).not.toHaveBeenCalled();
+      expect(submitSignature).not.toHaveBeenCalled();
+      expect(
+        sessionStorage.getItem(
+          `crypto_gateway:signature:${payment.id}:uncertain`,
+        ),
+      ).toBeNull();
+      view.unmount();
+      for (const [name, listener] of events.on.mock.calls)
+        expect(events.removeListener).toHaveBeenCalledWith(name, listener);
+    });
+
+    it(`ignores a stale connection result after ${event}`, async () => {
+      const events = walletEvents();
+      let approve!: (address: string) => void;
+      vi.mocked(connectWallet).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            approve = resolve;
+          }),
+      );
+      vi.mocked(paymentStatus).mockResolvedValue(payment);
+      render(<Checkout id={payment.id} token="token" />);
+      const action = await screen.findByRole<HTMLButtonElement>('button', {
+        name: 'Connect wallet',
+      });
+      fireEvent.click(action);
+      events.emit(event);
+      act(() => approve('1'.repeat(32)));
+      await waitFor(() => expect(action.disabled).toBe(false));
+      expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+      expect(screen.queryByText('Connected wallet')).toBeNull();
+      expect(sendPayment).not.toHaveBeenCalled();
+    });
+  }
+
+  it('retains uncertainty when the account changes during wallet submission', async () => {
+    const events = walletEvents();
+    let reject!: (error: Error) => void;
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    vi.mocked(sendPayment).mockImplementation(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    render(<Checkout id={payment.id} token="token" />);
+    await pay();
+    events.emit('accountChanged');
+    expect(
+      sessionStorage.getItem(
+        `crypto_gateway:signature:${payment.id}:uncertain`,
+      ),
+    ).toBe('true');
+    act(() =>
+      reject(new WalletSubmissionUncertain('Wallet submission is uncertain.')),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain(
+        'Wallet submission is uncertain.',
+      ),
+    );
+    expect(screen.queryByRole('button', { name: 'Connect wallet' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+    expect(
+      sessionStorage.getItem(
+        `crypto_gateway:signature:${payment.id}:uncertain`,
+      ),
+    ).toBe('true');
+    expect(sendPayment).toHaveBeenCalledOnce();
+    expect(submitSignature).not.toHaveBeenCalled();
   });
 
   it('can dismiss and reopen the submitted receipt without sending again', async () => {

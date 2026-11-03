@@ -23,6 +23,19 @@ interface WalletRequest {
 /** Injected wallet capabilities accepted at the browser boundary. */
 export interface PhantomProvider {
   isPhantom?: boolean;
+  /** Observe a wallet change that invalidates the displayed connected account.
+   * @param event - Provider lifecycle event.
+   * @param listener - Callback that clears checkout's connection state.
+   */
+  on?(event: 'disconnect' | 'accountChanged', listener: () => void): void;
+  /** Remove a previously registered lifecycle listener.
+   * @param event - Provider lifecycle event.
+   * @param listener - Previously registered callback.
+   */
+  removeListener?(
+    event: 'disconnect' | 'accountChanged',
+    listener: () => void,
+  ): void;
   /** Ask the user to connect and expose the approved public key.
    * @returns The wallet-approved public key.
    */
