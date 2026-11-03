@@ -61,6 +61,52 @@ declare global {
   }
 }
 
+/** Shared provider dispatchers retain only callbacks for currently active checkouts. */
+interface WalletEventSubscription {
+  listeners: Set<() => void>;
+  /** Relay a provider event to the currently subscribed checkout callbacks. */
+  dispatch: () => void;
+}
+
+const walletEventSubscriptions = new WeakMap<
+  PhantomProvider,
+  WalletEventSubscription
+>();
+
+/** Observe wallet changes without accumulating handlers on providers lacking removal.
+ * @param provider - Injected provider whose event capabilities may be absent.
+ * @param invalidate - Callback for the active checkout's connection only.
+ * @returns Cleanup that releases the checkout and detaches handlers when supported, or undefined without events.
+ */
+export function subscribeWalletEvents(
+  provider: PhantomProvider | undefined,
+  invalidate: () => void,
+): (() => void) | undefined {
+  if (!provider?.on) return;
+  let subscription = walletEventSubscriptions.get(provider);
+  if (!subscription) {
+    const listeners = new Set<() => void>();
+    /** Notify active checkouts without retaining callbacks from cleaned-up connections. */
+    function dispatch() {
+      for (const listener of listeners) listener();
+    }
+    provider.on('disconnect', dispatch);
+    provider.on('accountChanged', dispatch);
+    subscription = { listeners, dispatch };
+    walletEventSubscriptions.set(provider, subscription);
+  }
+  const { listeners, dispatch } = subscription;
+  listeners.add(invalidate);
+  return () => {
+    if (!listeners.delete(invalidate)) return;
+    if (listeners.size === 0 && provider.removeListener) {
+      provider.removeListener('disconnect', dispatch);
+      provider.removeListener('accountChanged', dispatch);
+      walletEventSubscriptions.delete(provider);
+    }
+  };
+}
+
 const WALLET_DIAGNOSTICS = [
   'WALLET_REQUEST_FAILED',
   'WALLET_RESPONSE_INVALID',

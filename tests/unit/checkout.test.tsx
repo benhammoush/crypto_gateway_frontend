@@ -217,7 +217,7 @@ describe('checkout', () => {
   });
 
   for (const event of ['disconnect', 'accountChanged'] as const) {
-    it(`handles ${event} without listener removal and ignores callbacks from an earlier connection`, async () => {
+    it(`shares ${event} listeners across reconnections and remounts without listener removal`, async () => {
       const events = walletEvents(false);
       vi.mocked(paymentStatus).mockResolvedValue(payment);
       const view = render(<Checkout id={payment.id} token="token" />);
@@ -225,20 +225,26 @@ describe('checkout', () => {
         await screen.findByRole('button', { name: 'Connect wallet' }),
       );
       await screen.findByRole('button', { name: 'Pay with SOL' });
-      const oldListener = events.on.mock.calls.find(
-        ([name]) => name === event,
-      )![1];
       events.emit(event);
       expect(screen.queryByText('Connected wallet')).toBeNull();
       fireEvent.click(screen.getByRole('button', { name: 'Connect wallet' }));
       await screen.findByRole('button', { name: 'Pay with SOL' });
-      act(oldListener);
-      expect(screen.getByText('Connected wallet')).toBeTruthy();
-      expect(screen.getByRole('button', { name: 'Pay with SOL' })).toBeTruthy();
+      expect(events.on).toHaveBeenCalledTimes(2);
+      events.emit(event);
+      expect(screen.queryByText('Connected wallet')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
       expect(sendPayment).not.toHaveBeenCalled();
       expect(submitSignature).not.toHaveBeenCalled();
       view.unmount();
       expect(() => events.emit(event)).not.toThrow();
+      render(<Checkout id={payment.id} token="token" />);
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Connect wallet' }),
+      );
+      await screen.findByRole('button', { name: 'Pay with SOL' });
+      expect(events.on).toHaveBeenCalledTimes(2);
+      events.emit(event);
+      expect(screen.queryByText('Connected wallet')).toBeNull();
       expect(events.removeListener).not.toHaveBeenCalled();
     });
 

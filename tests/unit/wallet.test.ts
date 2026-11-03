@@ -14,6 +14,7 @@ import {
 import {
   connectWallet,
   sendPayment,
+  subscribeWalletEvents,
   WalletNotSubmitted,
   WalletSubmissionUncertain,
   walletDiagnostic,
@@ -49,6 +50,61 @@ const payment: Payment = {
   settledAt: null,
   attempts: [],
 };
+
+it('keeps only two provider handlers across repeated subscriptions without removal', () => {
+  const on =
+    vi.fn<
+      (event: 'disconnect' | 'accountChanged', listener: () => void) => void
+    >();
+  const provider = { on, connect: vi.fn(), signAndSendTransaction: vi.fn() };
+  const invalidate = vi.fn();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const stop = subscribeWalletEvents(provider, invalidate)!;
+    expect(on).toHaveBeenCalledTimes(2);
+    for (const [, dispatch] of on.mock.calls) dispatch();
+    expect(invalidate).toHaveBeenCalledTimes(2);
+    stop();
+    stop();
+    invalidate.mockClear();
+    for (const [, dispatch] of on.mock.calls) dispatch();
+    expect(invalidate).not.toHaveBeenCalled();
+  }
+});
+
+it('cleans up subscribers independently and detaches supported provider listeners only when idle', () => {
+  const on =
+    vi.fn<
+      (event: 'disconnect' | 'accountChanged', listener: () => void) => void
+    >();
+  const removeListener = vi.fn();
+  const provider = {
+    on,
+    removeListener,
+    connect: vi.fn(),
+    signAndSendTransaction: vi.fn(),
+  };
+  const first = vi.fn();
+  const second = vi.fn();
+  const stopFirst = subscribeWalletEvents(provider, first)!;
+  const stopSecond = subscribeWalletEvents(provider, second)!;
+  expect(on).toHaveBeenCalledTimes(2);
+  stopFirst();
+  for (const [, dispatch] of on.mock.calls) dispatch();
+  expect(first).not.toHaveBeenCalled();
+  expect(second).toHaveBeenCalledTimes(2);
+  expect(removeListener).not.toHaveBeenCalled();
+  stopSecond();
+  stopSecond();
+  expect(removeListener).toHaveBeenCalledTimes(2);
+  for (const [event, dispatch] of on.mock.calls) {
+    expect(removeListener).toHaveBeenCalledWith(event, dispatch);
+    dispatch();
+  }
+  expect(second).toHaveBeenCalledTimes(2);
+  const stopNext = subscribeWalletEvents(provider, first)!;
+  expect(on).toHaveBeenCalledTimes(4);
+  stopNext();
+});
 
 it('connects without preparing or submitting a transaction', async () => {
   const send = vi.fn();
