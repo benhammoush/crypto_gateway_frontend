@@ -34,4 +34,3 @@ jobs:
       node_version: '24'
     secrets:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      SMOKE_BYPASS: ${{ secrets.SMOKE_BYPASS }}
