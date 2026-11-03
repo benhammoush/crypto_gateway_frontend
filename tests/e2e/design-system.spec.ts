@@ -60,6 +60,12 @@ for (const width of [320, 390, 1440, 1920]) {
       ),
     ).toBeVisible();
     await expect(customer).toContainText('— SOL');
+    await expect(
+      customer.getByRole('button', { name: 'Connect wallet' }),
+    ).toBeDisabled();
+    await expect(
+      customer.getByRole('button', { name: 'Pay with SOL' }),
+    ).toHaveCount(0);
     await expect(customer.locator('[inert]')).toHaveCount(1);
     await expect(customer.getByRole('status')).toContainText(
       'Waiting for checkout creation',
@@ -248,12 +254,30 @@ for (const width of [320, 1440]) {
         await expect(dialog).toBeInViewport({ ratio: 1 });
         await expect(page.locator('body')).not.toContainText('a'.repeat(64));
       } else if (status === 'pending') {
+        const amounts = customer.locator('.amount-total');
+        await expect(amounts).toHaveCount(2);
+        const usdSize = await amounts
+          .first()
+          .evaluate((element) => getComputedStyle(element).fontSize);
+        await expect(amounts.last()).toHaveCSS('font-size', usdSize);
+        const usdWeight = await amounts
+          .first()
+          .evaluate((element) => getComputedStyle(element).fontWeight);
+        await expect(amounts.last()).toHaveCSS('font-weight', usdWeight);
         await expect(
           page.getByRole('button', { name: 'Connect wallet' }),
         ).toBeEnabled();
+        const action = await page
+          .getByRole('button', { name: 'Connect wallet' })
+          .boundingBox();
+        const card = await customer.locator('.checkout-card').boundingBox();
+        expect(action!.width).toBeLessThan(card!.width * 0.8);
+        expect(
+          Math.abs(action!.x + action!.width / 2 - (card!.x + card!.width / 2)),
+        ).toBeLessThan(2);
         await expect(
           page.getByRole('button', { name: 'Pay with SOL' }),
-        ).toBeDisabled();
+        ).toHaveCount(0);
       } else {
         await expect(page.getByRole('alert')).toContainText(
           'Do not send a new transfer',

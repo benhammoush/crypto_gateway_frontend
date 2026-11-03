@@ -260,28 +260,38 @@ function Demo() {
               className="checkout-card"
             >
               <Flex vertical gap="small">
-                <Typography.Text type="secondary">Cart total</Typography.Text>
-                <Typography.Title
-                  level={3}
-                  className="amount-total"
-                  style={{ margin: 0 }}
+                <Flex
+                  vertical
+                  align="center"
+                  gap={8}
+                  className="checkout-summary"
                 >
-                  — USD
-                </Typography.Title>
-                <Typography.Text>— SOL</Typography.Text>
-                <Typography.Text type="secondary">
-                  Quote expires in —
-                </Typography.Text>
+                  <Typography.Text type="secondary">Cart total</Typography.Text>
+                  <Typography.Title
+                    level={3}
+                    className="amount-total"
+                    style={{ margin: 0 }}
+                  >
+                    — USD
+                  </Typography.Title>
+                  <Typography.Title
+                    level={3}
+                    className="amount-total"
+                    style={{ margin: 0 }}
+                  >
+                    — SOL
+                  </Typography.Title>
+                  <Typography.Text type="secondary" className="quote-timer">
+                    Quote expires in —
+                  </Typography.Text>
+                </Flex>
                 <Typography.Text type="secondary">
                   Network · Solana Devnet
                 </Typography.Text>
                 <Typography.Text type="secondary">Recipient —</Typography.Text>
-                <Flex gap="small">
-                  <Button disabled block>
+                <Flex vertical align="center" className="checkout-actions">
+                  <Button type="primary" size="large" disabled>
                     Connect wallet
-                  </Button>
-                  <Button disabled block>
-                    Pay with SOL
                   </Button>
                 </Flex>
                 <Typography.Text type="secondary">Reference —</Typography.Text>

@@ -368,7 +368,12 @@ for (const responseLoss of ['none', 'unrecorded', 'recorded'] as const) {
       });
     });
     await page.goto(`/checkout/${id}#${'a'.repeat(64)}`);
+    const action = page.locator('.checkout-card button.ant-btn-primary');
+    await expect(action).toHaveCount(1);
+    await expect(action).toHaveText('Connect wallet');
+    await expect(page.locator('.wallet-connection-dot')).toHaveCount(0);
     await page.getByRole('button', { name: 'Connect wallet' }).click();
+    await expect(action).toBeDisabled();
     await page.waitForFunction(() => 'approveFixtureWallet' in window);
     await page.evaluate(() =>
       (
@@ -385,6 +390,14 @@ for (const responseLoss of ['none', 'unrecorded', 'recorded'] as const) {
     await expect(
       page.getByRole('button', { name: 'Pay with SOL' }),
     ).toBeEnabled();
+    await expect(action).toHaveText('Pay with SOL');
+    await expect(page.locator('.wallet-connection-dot')).toHaveCSS(
+      'background-color',
+      'rgb(82, 196, 26)',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Connect wallet' }),
+    ).toHaveCount(0);
     expect(rpcMethods).toEqual([]);
     await page.getByRole('button', { name: 'Pay with SOL' }).click();
     await expect(page.locator('[aria-current="step"]')).toHaveText(

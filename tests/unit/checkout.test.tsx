@@ -104,16 +104,13 @@ describe('reference form', () => {
 });
 
 describe('checkout', () => {
-  it('connects without sending funds and keeps payment approval separate', async () => {
+  it('changes the single connection button into a separate payment action without sending', async () => {
     vi.mocked(paymentStatus).mockResolvedValue(payment);
     render(<Checkout id={payment.id} token="token" />);
     const connect = await screen.findByRole('button', {
       name: 'Connect wallet',
     });
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Pay with SOL' })
-        .disabled,
-    ).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
     fireEvent.click(connect);
     await waitFor(() =>
       expect(
@@ -122,6 +119,8 @@ describe('checkout', () => {
       ).toBe(false),
     );
     expect(connectWallet).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Connect wallet' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Pay with SOL' })).toBe(connect);
     expect(sendPayment).not.toHaveBeenCalled();
     expect(submitSignature).not.toHaveBeenCalled();
     expect(
@@ -144,11 +143,42 @@ describe('checkout', () => {
       'No payment was requested.',
     );
     expect(document.body.textContent).not.toContain('private wallet details');
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Pay with SOL' })
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Connect wallet' })
         .disabled,
-    ).toBe(true);
+    ).toBe(false);
     expect(sendPayment).not.toHaveBeenCalled();
+  });
+
+  it('disables the unified action while connecting and ignores repeated clicks', async () => {
+    let approve!: (address: string) => void;
+    vi.mocked(connectWallet).mockImplementation(
+      () => new Promise((resolve) => (approve = resolve)),
+    );
+    vi.mocked(paymentStatus).mockResolvedValue(payment);
+    render(<Checkout id={payment.id} token="token" />);
+    const action = await screen.findByRole<HTMLButtonElement>('button', {
+      name: 'Connect wallet',
+    });
+    fireEvent.click(action);
+    expect(action.disabled).toBe(true);
+    fireEvent.click(action);
+    expect(connectWallet).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Pay with SOL' })).toBeNull();
+    expect(sendPayment).not.toHaveBeenCalled();
+    approve('1'.repeat(32));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Pay with SOL' })).toBe(action);
+      expect(action.disabled).toBe(false);
+    });
+    expect(sendPayment).not.toHaveBeenCalled();
+    expect(submitSignature).not.toHaveBeenCalled();
+    expect(
+      sessionStorage.getItem(
+        `crypto_gateway:signature:${payment.id}:uncertain`,
+      ),
+    ).toBeNull();
   });
 
   it('can dismiss and reopen the submitted receipt without sending again', async () => {
@@ -215,7 +245,9 @@ describe('checkout', () => {
       displaySol: '9007199.254740993',
     });
     render(<Checkout id={payment.id} token="token" />);
-    expect(await screen.findByText('9007199.254740993 SOL')).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: '9007199.254740993 SOL' }),
+    ).toBeTruthy();
     expect(screen.getByText(payment.recipient, { exact: false })).toBeTruthy();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(document.body.textContent).not.toMatch(/ETH|0xrecipient/);
