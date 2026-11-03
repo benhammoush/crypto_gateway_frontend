@@ -260,6 +260,20 @@ for (const responseLoss of ['none', 'unrecorded', 'recorded'] as const) {
                     }),
                 }),
               ),
+            /** Subscribe to controlled fixture lifecycle events.
+             * @param event - Wallet event name.
+             * @param listener - Checkout lifecycle callback.
+             * @returns Completion after registering the listener.
+             */
+            on: (event: string, listener: () => void) =>
+              window.addEventListener(`fixture-wallet:${event}`, listener),
+            /** Remove a fixture lifecycle subscription.
+             * @param event - Wallet event name.
+             * @param listener - Previously registered callback.
+             * @returns Completion after removing the listener.
+             */
+            removeListener: (event: string, listener: () => void) =>
+              window.removeEventListener(`fixture-wallet:${event}`, listener),
             /** Inspect serialized wire bytes before returning the controlled submission result.
              * @param transaction - Wallet-bound transaction prepared by checkout.
              * @returns The fixture signature after message validation succeeds.
@@ -368,7 +382,12 @@ for (const responseLoss of ['none', 'unrecorded', 'recorded'] as const) {
       });
     });
     await page.goto(`/checkout/${id}#${'a'.repeat(64)}`);
+    const action = page.locator('.checkout-card button.ant-btn-primary');
+    await expect(action).toHaveCount(1);
+    await expect(action).toHaveText('Connect wallet');
+    await expect(page.locator('.wallet-connection-dot')).toHaveCount(0);
     await page.getByRole('button', { name: 'Connect wallet' }).click();
+    await expect(action).toBeDisabled();
     await page.waitForFunction(() => 'approveFixtureWallet' in window);
     await page.evaluate(() =>
       (
@@ -385,7 +404,40 @@ for (const responseLoss of ['none', 'unrecorded', 'recorded'] as const) {
     await expect(
       page.getByRole('button', { name: 'Pay with SOL' }),
     ).toBeEnabled();
+    await expect(action).toHaveText('Pay with SOL');
+    await expect(page.locator('.wallet-connection-dot')).toHaveCSS(
+      'background-color',
+      'rgb(82, 196, 26)',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Connect wallet' }),
+    ).toHaveCount(0);
     expect(rpcMethods).toEqual([]);
+    for (const event of ['disconnect', 'accountChanged']) {
+      await page.evaluate((event) => {
+        window.dispatchEvent(new Event(`fixture-wallet:${event}`));
+      }, event);
+      await expect(page.locator('.wallet-connection-dot')).toHaveCount(0);
+      await expect(action).toHaveText('Connect wallet');
+      await expect(action).toBeEnabled();
+      await expect(page.getByText('Connected wallet')).toHaveCount(0);
+      await action.click();
+      await page.waitForFunction(() => 'approveFixtureWallet' in window);
+      await page.evaluate(() => {
+        const fixture = window as unknown as {
+          /** Complete only the explicit fixture-wallet connection. */
+          approveFixtureWallet?: () => void;
+        };
+        fixture.approveFixtureWallet!();
+        delete fixture.approveFixtureWallet;
+      });
+      await expect(action).toHaveText('Pay with SOL');
+      await expect(action).toBeEnabled();
+      await expect(page.locator('.wallet-connection-dot')).toHaveCount(1);
+      expect(walletSends).toBe(0);
+      expect(rpcMethods).toEqual([]);
+      expect(submissions).toEqual([]);
+    }
     await page.getByRole('button', { name: 'Pay with SOL' }).click();
     await expect(page.locator('[aria-current="step"]')).toHaveText(
       'Wallet approval',

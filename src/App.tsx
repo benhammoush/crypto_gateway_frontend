@@ -15,6 +15,7 @@ import { Payment, Progress } from './types';
 import {
   sendPayment,
   connectWallet,
+  subscribeWalletEvents,
   walletDiagnostic,
   walletFailureDetails,
   WalletNotSubmitted,
@@ -260,28 +261,38 @@ function Demo() {
               className="checkout-card"
             >
               <Flex vertical gap="small">
-                <Typography.Text type="secondary">Cart total</Typography.Text>
-                <Typography.Title
-                  level={3}
-                  className="amount-total"
-                  style={{ margin: 0 }}
+                <Flex
+                  vertical
+                  align="center"
+                  gap={8}
+                  className="checkout-summary"
                 >
-                  — USD
-                </Typography.Title>
-                <Typography.Text>— SOL</Typography.Text>
-                <Typography.Text type="secondary">
-                  Quote expires in —
-                </Typography.Text>
+                  <Typography.Text type="secondary">Cart total</Typography.Text>
+                  <Typography.Title
+                    level={3}
+                    className="amount-total"
+                    style={{ margin: 0 }}
+                  >
+                    — USD
+                  </Typography.Title>
+                  <Typography.Title
+                    level={3}
+                    className="amount-total"
+                    style={{ margin: 0 }}
+                  >
+                    — SOL
+                  </Typography.Title>
+                  <Typography.Text type="secondary" className="quote-timer">
+                    Quote expires in —
+                  </Typography.Text>
+                </Flex>
                 <Typography.Text type="secondary">
                   Network · Solana Devnet
                 </Typography.Text>
                 <Typography.Text type="secondary">Recipient —</Typography.Text>
-                <Flex gap="small">
-                  <Button disabled block>
+                <Flex vertical align="center" className="checkout-actions">
+                  <Button type="primary" size="large" disabled>
                     Connect wallet
-                  </Button>
-                  <Button disabled block>
-                    Pay with SOL
                   </Button>
                 </Flex>
                 <Typography.Text type="secondary">Reference —</Typography.Text>
@@ -306,6 +317,8 @@ export function Checkout(props: CheckoutProps) {
   const [modalOpen, setModalOpen] = useState(true);
   const submitting = useRef(false);
   const connectionPending = useRef(false);
+  const walletConnectionVersion = useRef(0);
+  const stopWalletEvents = useRef<(() => void) | undefined>(undefined);
   const [payment, setPayment] = useState<Payment>();
   const [progress, setProgress] = useState<Progress>();
   const [message, setMessage] = useState('');
@@ -331,6 +344,14 @@ export function Checkout(props: CheckoutProps) {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(
+    () => () => {
+      walletConnectionVersion.current++;
+      stopWalletEvents.current?.();
+    },
+    [],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -500,7 +521,25 @@ export function Checkout(props: CheckoutProps) {
     setConnecting(true);
     setMessage('');
     try {
-      setWalletAddress(await connectWallet());
+      stopWalletEvents.current?.();
+      stopWalletEvents.current = undefined;
+      const provider = window.phantom?.solana;
+      const version = ++walletConnectionVersion.current;
+      /** Require an explicit reconnection without changing payment recovery guards. */
+      function invalidateWalletConnection() {
+        walletConnectionVersion.current++;
+        setWalletAddress('');
+      }
+      stopWalletEvents.current = subscribeWalletEvents(
+        provider,
+        invalidateWalletConnection,
+      );
+      const address = await connectWallet();
+      if (
+        version === walletConnectionVersion.current &&
+        window.phantom?.solana === provider
+      )
+        setWalletAddress(address);
     } catch {
       setMessage(
         'Unable to connect Phantom. Open or install Phantom and try again. No payment was requested.',
