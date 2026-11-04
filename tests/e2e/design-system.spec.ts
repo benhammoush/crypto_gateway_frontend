@@ -30,6 +30,9 @@ for (const width of [320, 390, 1440, 1920]) {
     );
     await page.goto('/');
     await expect(page).toHaveTitle('Pay with Solana');
+    expect(
+      (await page.locator('.checkout-layout > header').boundingBox())!.y,
+    ).toBe(0);
     const business = page.getByRole('region', {
       name: 'Business',
       exact: true,

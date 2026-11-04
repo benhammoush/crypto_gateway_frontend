@@ -612,6 +612,9 @@ test('USD form creates an inline checkout with three progress steps and a custom
   await expect(page.getByLabel('Cart total (USD)')).toBeDisabled();
   await expect(page.getByRole('combobox', { name: 'Network' })).toBeDisabled();
   await expect(page.getByText('Created · amount locked')).toBeVisible();
+  expect(
+    (await page.locator('.checkout-layout > header').boundingBox())!.y,
+  ).toBe(0);
   await expect(
     page.getByText('Your payment link is ready to share.'),
   ).toBeVisible();
@@ -621,8 +624,15 @@ test('USD form creates an inline checkout with three progress steps and a custom
   ).toContainText(`/checkout/${id}`);
   await expect(page.locator('body')).not.toContainText('a'.repeat(64));
   expect(new URL(page.url()).hash).toBe('');
+  await page.screenshot({
+    path: test.info().outputPath('inline-checkout.png'),
+    fullPage: true,
+  });
   await page.reload();
   await expect(page.getByRole('heading', { name: '$12.34 USD' })).toBeVisible();
+  expect(
+    (await page.locator('.checkout-layout > header').boundingBox())!.y,
+  ).toBe(0);
   await expect(
     page.getByRole('region', { name: 'Business', exact: true }),
   ).toHaveCount(0);
