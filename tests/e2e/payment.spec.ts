@@ -413,6 +413,23 @@ for (const responseLoss of ['none', 'unrecorded', 'recorded'] as const) {
       page.getByRole('button', { name: 'Connect wallet' }),
     ).toHaveCount(0);
     expect(rpcMethods).toEqual([]);
+    for (const width of [320, 1366]) {
+      await page.setViewportSize({ width, height: width === 1366 ? 650 : 900 });
+      const card = page.locator('.checkout-card');
+      expect((await card.boundingBox())!.height).toBeLessThanOrEqual(420);
+      if (width === 1366) await expect(card).toBeInViewport({ ratio: 1 });
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      if (!loseResponse && test.info().project.name === 'chromium') {
+        await page.screenshot({
+          path: test.info().outputPath(`connected-${width}.png`),
+          fullPage: true,
+        });
+      }
+    }
     for (const event of ['disconnect', 'accountChanged']) {
       await page.evaluate((event) => {
         window.dispatchEvent(new Event(`fixture-wallet:${event}`));

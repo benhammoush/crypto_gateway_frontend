@@ -3,11 +3,11 @@
  */
 import { expect, test } from '@playwright/test';
 
-for (const width of [320, 1280]) {
+for (const width of [320, 1280, 1366]) {
   test(`reference refresh stops at creation and the locked rate survives reload at ${width}px`, async ({
     page,
   }) => {
-    await page.setViewportSize({ width, height: 1000 });
+    await page.setViewportSize({ width, height: width >= 1280 ? 650 : 900 });
     await page.clock.install();
     const id = '55555555-5555-4555-8555-555555555555';
     const token = 'a'.repeat(64);
@@ -84,7 +84,22 @@ for (const width of [320, 1280]) {
       page.getByText('Locked rate · 1 SOL ≈ $100.00 USD'),
     ).toBeVisible();
     await expect(reference).toHaveCount(0);
+    const customer = page.getByRole('region', {
+      name: 'Customer',
+      exact: true,
+    });
+    const card = customer.locator('.checkout-card');
+    expect((await card.boundingBox())!.height).toBeLessThanOrEqual(360);
+    if (width >= 1280) {
+      await expect(card).toBeInViewport({ ratio: 1 });
+      await expect(
+        page.getByRole('button', { name: 'Connect wallet' }),
+      ).toBeInViewport({ ratio: 1 });
+    }
     if (test.info().project.name === 'chromium') {
+      await card.screenshot({
+        path: test.info().outputPath(`card-${width}.png`),
+      });
       await page.screenshot({
         path: test.info().outputPath(`locked-${width}.png`),
         fullPage: true,
@@ -95,6 +110,41 @@ for (const width of [320, 1280]) {
     await expect(
       page.getByText('0.100000000 SOL', { exact: true }),
     ).toBeVisible();
+    const copied: string[] = [];
+    await page.exposeFunction('recordReferenceCopy', (text: string) =>
+      copied.push(text),
+    );
+    await page.evaluate(() => {
+      // The library stops the native copy event from bubbling; observe it before that handler.
+      document.addEventListener(
+        'copy',
+        (event) => {
+          const text = window.getSelection()?.toString() ?? '';
+          void (
+            window as unknown as {
+              /** Record the selected clipboard text without using the system clipboard.
+               * @param text - Exact reference selected by the copy control.
+               * @returns Completion of the test-side recording callback.
+               */
+              recordReferenceCopy(text: string): Promise<void>;
+            }
+          ).recordReferenceCopy(text);
+          event.preventDefault();
+        },
+        true,
+      );
+    });
+    const referenceRow = customer.locator('.payment-reference');
+    await expect(referenceRow.getByText(id, { exact: true })).toHaveAttribute(
+      'title',
+      id,
+    );
+    const copy = referenceRow.getByRole('button', {
+      name: 'Copy payment reference',
+    });
+    await copy.focus();
+    await copy.press('Enter');
+    await expect.poll(() => copied.at(-1)).toBe(id);
     await page.reload();
     await expect(
       page.getByText('Locked rate · 1 SOL ≈ $100.00 USD'),

@@ -252,7 +252,7 @@ section[aria-label='Customer'] > .role-label::before {
 }
 
 .amount-total.ant-typography {
-  font-size: 1.75rem;
+  font-size: clamp(1.25rem, 2.1vw, 1.75rem);
   font-weight: 650;
   letter-spacing: -0.035em;
   line-height: 1.3;
@@ -261,8 +261,33 @@ section[aria-label='Customer'] > .role-label::before {
 }
 
 .checkout-summary {
-  text-align: center;
-  padding: 8px 0 12px;
+  padding: 2px 0;
+}
+
+.checkout-amounts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.checkout-amounts > div + div {
+  padding-left: 16px;
+  border-left: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+}
+
+.amount-label.ant-typography {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+}
+
+.checkout-quote {
+  margin-top: 12px;
+  font-size: 0.75rem;
+}
+
+.checkout-quote .exchange-rate {
+  font-size: inherit;
 }
 
 .quote-timer.ant-typography {
@@ -297,14 +322,45 @@ section[aria-label='Customer'] > .role-label::before {
   min-width: 0;
 }
 
-.payment-reference.ant-typography {
+.payment-reference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+}
+
+.payment-reference .ant-typography {
   font-size: 0.75rem;
-  text-align: center;
+}
+
+.payment-reference-value.ant-typography {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 55%;
+}
+
+.payment-reference-id {
+  min-width: 0;
+  max-width: 18ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.payment-reference-value .ant-typography-copy {
+  flex: none;
 }
 
 .checkout-actions {
-  margin-top: 4px;
-  padding: 0 0 8px;
+  margin-top: 0;
+  padding: 0;
+}
+
+.checkout-actions > .ant-btn {
+  min-height: 44px;
 }
 
 .checkout-wallet {
@@ -312,8 +368,7 @@ section[aria-label='Customer'] > .role-label::before {
   border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
   border-radius: 8px;
   background: var(--ant-color-fill-quaternary, #fafafa);
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  padding: 8px 12px;
   font-size: 0.8125rem;
 }
 
@@ -416,6 +471,22 @@ section[aria-label='Customer'] > .role-label::before {
 }
 
 @media (max-width: 420px) {
+  .amount-total.ant-typography {
+    font-size: 1.125rem;
+  }
+
+  .checkout-amounts {
+    gap: 10px;
+  }
+
+  .checkout-amounts > div + div {
+    padding-left: 10px;
+  }
+
+  .amount-total > .ant-typography {
+    display: block;
+  }
+
   .brand.ant-typography {
     gap: 8px;
   }
