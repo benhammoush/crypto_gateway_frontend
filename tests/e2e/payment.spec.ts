@@ -560,7 +560,20 @@ test('disabled demo explains availability and blocks payment creation', async ({
 test('USD form creates an inline checkout with three progress steps and a customer-only reload', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1280, height: 630 });
   const id = '11111111-1111-4111-8111-111111111111';
+  let releaseStatus!: () => void;
+  const statusReady = new Promise<void>((resolve) => {
+    releaseStatus = resolve;
+  });
+  await page.route('**/v1/price', (route) =>
+    route.fulfill({
+      headers: {
+        'access-control-allow-origin': test.info().project.use.baseURL!,
+      },
+      json: { data: { usdPrice: '100', blockId: 123, fetchedAt: Date.now() } },
+    }),
+  );
   await page.route('**/api/demo/status', async (route) => {
     expect(route.request().method()).toBe('GET');
     await route.fulfill({ json: { data: { enabled: true } } });
@@ -577,6 +590,7 @@ test('USD form creates an inline checkout with three progress steps and a custom
     });
   });
   await page.route('**/v1/checkout/**', async (route) => {
+    if (route.request().method() !== 'OPTIONS') await statusReady;
     await route.fulfill({
       headers: {
         'access-control-allow-origin': test.info().project.use.baseURL!,
@@ -601,11 +615,48 @@ test('USD form creates an inline checkout with three progress steps and a custom
     });
   });
   await page.goto('/');
+  await expect(
+    page.getByText('SOL/USD reference · 1 SOL ≈ $100.00 USD', { exact: true }),
+  ).toBeVisible();
+  const panels = page.locator(
+    '.role-layout > section:not(.handoff) .checkout-card, .handoff, .progress-card',
+  );
+  const before = await panels.evaluateAll((elements) =>
+    elements.map((element) => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    }),
+  );
+  /** Reject panel movement while allowing subpixel differences in button text metrics. */
+  async function expectStablePanels() {
+    for (const [index, box] of before.entries()) {
+      const current = (await panels.nth(index).boundingBox())!;
+      for (const key of ['x', 'y', 'width', 'height'] as const) {
+        expect(Math.abs(current[key] - box[key])).toBeLessThan(1);
+      }
+    }
+  }
+  await page.screenshot({
+    path: test.info().outputPath('before-creation.png'),
+    fullPage: true,
+  });
   await page.getByLabel('Cart total (USD)').fill('12.34');
   await page
     .getByRole('button', { name: 'Create payment link', exact: true })
     .click();
+  await expect(page.getByText('Loading payment…')).toBeVisible();
+  await expectStablePanels();
+  await expect(
+    page.getByRole('button', { name: 'Loading checkout…' }),
+  ).toBeDisabled();
+  releaseStatus();
   await expect(page.getByRole('heading', { name: '$12.34 USD' })).toBeVisible();
+  await expectStablePanels();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollHeight <= innerHeight,
+    ),
+  ).toBe(true);
   await expect(
     page.getByRole('list', { name: 'Payment progress' }).getByRole('listitem'),
   ).toHaveCount(3);
