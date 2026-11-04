@@ -108,24 +108,41 @@ export function PaymentView(props: PaymentViewProps) {
         {p ? (
           <>
             <div aria-label="Payment summary" className="checkout-summary">
-              <Flex vertical align="center" gap={8}>
-                <Typography.Text type="secondary">Cart total</Typography.Text>
-                <Typography.Title
-                  level={3}
-                  className="amount-total"
-                  style={{ margin: 0 }}
-                >
-                  ${(p.usdCents / 100).toFixed(2)}{' '}
-                  <Typography.Text type="secondary">USD</Typography.Text>
-                </Typography.Title>
-                <Typography.Title
-                  level={3}
-                  className="amount-total"
-                  style={{ margin: 0 }}
-                >
-                  {p.displaySol}{' '}
-                  <Typography.Text type="secondary">SOL</Typography.Text>
-                </Typography.Title>
+              <div className="checkout-amounts">
+                <div>
+                  <Typography.Text type="secondary" className="amount-label">
+                    Cart total
+                  </Typography.Text>
+                  <Typography.Title
+                    level={3}
+                    className="amount-total"
+                    style={{ margin: 0 }}
+                  >
+                    ${(p.usdCents / 100).toFixed(2)}{' '}
+                    <Typography.Text type="secondary">USD</Typography.Text>
+                  </Typography.Title>
+                </div>
+                <div>
+                  <Typography.Text type="secondary" className="amount-label">
+                    You pay
+                  </Typography.Text>
+                  <Typography.Title
+                    level={3}
+                    className="amount-total"
+                    style={{ margin: 0 }}
+                  >
+                    {p.displaySol}{' '}
+                    <Typography.Text type="secondary">SOL</Typography.Text>
+                  </Typography.Title>
+                </div>
+              </div>
+              <Flex
+                align="center"
+                justify="space-between"
+                gap={8}
+                wrap
+                className="checkout-quote"
+              >
                 <Typography.Text type="secondary" className="exchange-rate">
                   Locked rate · 1 SOL ≈ ${formatUsdRate(p.quote.usdPrice)} USD
                 </Typography.Text>
@@ -213,9 +230,21 @@ export function PaymentView(props: PaymentViewProps) {
         ) : (
           <Typography.Text type="secondary">Loading payment…</Typography.Text>
         )}
-        <Typography.Text type="secondary" className="address payment-reference">
-          Payment reference {props.id}
-        </Typography.Text>
+        <div className="payment-reference">
+          <Typography.Text type="secondary">Payment reference</Typography.Text>
+          <Typography.Text
+            type="secondary"
+            className="payment-reference-value"
+            copyable={{
+              text: props.id,
+              tooltips: ['Copy payment reference', 'Copied'],
+            }}
+          >
+            <span className="payment-reference-id" title={props.id}>
+              {props.id}
+            </span>
+          </Typography.Text>
+        </div>
       </Flex>
     </Card>
   );

@@ -154,7 +154,7 @@ for (const width of [320, 390, 1440, 1920]) {
   });
 }
 
-for (const width of [320, 1440]) {
+for (const width of [320, 390, 1366, 1440]) {
   for (const status of [
     'pending',
     'verifying',
@@ -162,7 +162,7 @@ for (const width of [320, 1440]) {
     'expired',
   ] as const) {
     test(`customer checkout ${status} at ${width}px`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
+      await page.setViewportSize({ width, height: width >= 1366 ? 650 : 900 });
       await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
       const id = '44444444-4444-4444-8444-444444444444';
       const signature = '1'.repeat(64);
@@ -264,6 +264,10 @@ for (const width of [320, 1440]) {
           .first()
           .evaluate((element) => getComputedStyle(element).fontWeight);
         await expect(amounts.last()).toHaveCSS('font-weight', usdWeight);
+        const usdBox = (await amounts.first().boundingBox())!;
+        const solBox = (await amounts.last().boundingBox())!;
+        expect(Math.abs(usdBox.y - solBox.y)).toBeLessThan(2);
+        expect(solBox.x).toBeGreaterThan(usdBox.x);
         await expect(
           page.getByRole('button', { name: 'Connect wallet' }),
         ).toBeEnabled();
@@ -271,6 +275,13 @@ for (const width of [320, 1440]) {
           .getByRole('button', { name: 'Connect wallet' })
           .boundingBox();
         const card = await customer.locator('.checkout-card').boundingBox();
+        expect(card!.height).toBeLessThanOrEqual(360);
+        if (width >= 1366) {
+          expect(action!.y + action!.height).toBeLessThanOrEqual(650);
+          await expect(customer.locator('.checkout-card')).toBeInViewport({
+            ratio: 1,
+          });
+        }
         expect(action!.width).toBeLessThan(card!.width * 0.8);
         expect(
           Math.abs(action!.x + action!.width / 2 - (card!.x + card!.width / 2)),

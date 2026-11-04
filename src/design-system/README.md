@@ -26,6 +26,13 @@ calculate amounts or alter quotes. Retrieval time does not certify provider fres
 SOL/USD rates display to two decimal places with an approximation sign; stored quote
 precision and exact payable SOL amounts are unchanged.
 
+Created checkouts show equally prominent USD and exact SOL amounts side by side.
+The locked rate and quote timer share a wrapping row, followed by network, recipient
+and the existing wallet action. Payment references are visually abbreviated with
+their full value available on hover and through the keyboard-accessible copy control.
+This compact card is shared by the business demo and standalone customer checkout;
+the submitted-transaction receipt and payment guards are unchanged.
+
 Ant Design Web3 supplies presentation-only `Address`; abbreviated addresses remain
 copyable in full. Amounts display the exact backend quote without number coercion,
 and transaction links explicitly select Solana Devnet rather than EVM defaults.
