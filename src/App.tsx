@@ -23,6 +23,7 @@ import {
 } from './wallet';
 import { readSession, removeSession, saveSession } from './storage';
 import { CheckoutLayout } from './CheckoutLayout';
+import { CheckoutPlaceholder } from './CheckoutPlaceholder';
 import { PaymentView } from './PaymentView';
 import { PanelStatus } from './PanelStatus';
 import { LivePrice } from './LivePrice';
@@ -37,7 +38,6 @@ import {
   ReloadOutlined,
   ShoppingCartOutlined,
   Typography,
-  WalletOutlined,
 } from './design-system';
 
 const MAX_POLLS = 180;
@@ -248,56 +248,7 @@ function Demo() {
       customer={
         <div className="panel-frame">
           <div className="locked-panel" {...{ inert: '' }}>
-            <Card
-              title={
-                <Flex align="center" gap="small">
-                  <span className="panel-icon" aria-hidden="true">
-                    <WalletOutlined />
-                  </span>
-                  <span>Review &amp; pay</span>
-                </Flex>
-              }
-              size="small"
-              className="checkout-card"
-            >
-              <Flex vertical gap="small">
-                <Flex
-                  vertical
-                  align="center"
-                  gap={8}
-                  className="checkout-summary"
-                >
-                  <Typography.Text type="secondary">Cart total</Typography.Text>
-                  <Typography.Title
-                    level={3}
-                    className="amount-total"
-                    style={{ margin: 0 }}
-                  >
-                    — USD
-                  </Typography.Title>
-                  <Typography.Title
-                    level={3}
-                    className="amount-total"
-                    style={{ margin: 0 }}
-                  >
-                    — SOL
-                  </Typography.Title>
-                  <Typography.Text type="secondary" className="quote-timer">
-                    Quote expires in —
-                  </Typography.Text>
-                </Flex>
-                <Typography.Text type="secondary">
-                  Network · Solana Devnet
-                </Typography.Text>
-                <Typography.Text type="secondary">Recipient —</Typography.Text>
-                <Flex vertical align="center" className="checkout-actions">
-                  <Button type="primary" size="large" disabled>
-                    Connect wallet
-                  </Button>
-                </Flex>
-                <Typography.Text type="secondary">Reference —</Typography.Text>
-              </Flex>
-            </Card>
+            <CheckoutPlaceholder />
           </div>
           <PanelStatus state="waiting" />
         </div>

@@ -19,6 +19,7 @@ import {
   WalletOutlined,
 } from './design-system';
 import { CheckoutLayout } from './CheckoutLayout';
+import { CheckoutPlaceholder } from './CheckoutPlaceholder';
 import { formatUsdRate } from './format-price';
 import type { Payment, Progress } from './types';
 
@@ -257,7 +258,7 @@ export function PaymentView(props: PaymentViewProps) {
         progress={props.progress}
         submitted={submitted}
         verificationFailed={rejected}
-        customer={customer}
+        customer={p ? customer : <CheckoutPlaceholder loading />}
         progressAction={
           <Flex align="center" gap={4} wrap>
             {submitted && (
